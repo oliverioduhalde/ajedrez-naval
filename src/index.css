@@ -1,0 +1,75 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #000a02;
+}
+
+:root {
+  --p:    #00ff66;   /* phosphor primary */
+  --pd:   #00cc44;   /* phosphor dim */
+  --pdd:  #004d1a;   /* phosphor very dim */
+  --pb:   #80ffaa;   /* phosphor bright */
+  --bg:   #000a02;
+  --bg2:  #001206;
+  --scan: rgba(0,0,0,0.18);
+}
+
+/* ── CRT scanlines ───────────────────────────────────── */
+@keyframes scanline-scroll {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+
+@keyframes crt-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+  20%, 24%, 55% { opacity: 0.92; }
+}
+
+@keyframes phosphor-pulse {
+  0%, 100% { text-shadow: 0 0 4px var(--p), 0 0 12px var(--pd); }
+  50%       { text-shadow: 0 0 6px var(--p), 0 0 20px var(--p), 0 0 40px var(--pdd); }
+}
+
+/* ── Glitch ──────────────────────────────────────────── */
+@keyframes glitch-h {
+  0%,89%,100% { clip-path: none; transform: none; }
+  90%  { clip-path: polygon(0 12% ,100% 12% ,100% 16% ,0 16% ); transform: translateX(-4px); filter: hue-rotate(120deg) brightness(1.5); }
+  92%  { clip-path: polygon(0 62% ,100% 62% ,100% 68% ,0 68% ); transform: translateX( 3px); }
+  94%  { clip-path: polygon(0 30% ,100% 30% ,100% 34% ,0 34% ); transform: translateX(-2px); filter: hue-rotate(-90deg); }
+  96%  { clip-path: polygon(0 78% ,100% 78% ,100% 82% ,0 82% ); transform: translateX( 5px); filter: brightness(1.8); }
+  98%  { clip-path: none; transform: skewX(0.3deg); }
+}
+
+@keyframes glitch-rgb {
+  0%,88%,100% { filter: none; }
+  89%  { filter: drop-shadow(2px 0 0 rgba(255,0,0,0.6)) drop-shadow(-2px 0 0 rgba(0,255,255,0.6)); }
+  91%  { filter: none; }
+  93%  { filter: drop-shadow(-3px 0 0 rgba(255,0,0,0.5)) drop-shadow(3px 0 0 rgba(0,0,255,0.5)); }
+  95%  { filter: none; }
+}
+
+@keyframes flicker-fast {
+  0%,100% { opacity:1; }
+  50% { opacity:0.95; }
+  75% { opacity:0.98; }
+}
+
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Typography ──────────────────────────────────────── */
+* { font-family: 'Courier New', Courier, monospace; }
+
+/* ── Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #000a02; }
+::-webkit-scrollbar-thumb { background: var(--pdd); border-radius: 2px; }
+
+/* ── Phosphor glow utilities ─────────────────────────── */
+.glow  { text-shadow: 0 0 6px var(--p), 0 0 14px var(--pd); }
+.glow2 { box-shadow:  0 0 6px var(--p), 0 0 16px var(--pdd); }
