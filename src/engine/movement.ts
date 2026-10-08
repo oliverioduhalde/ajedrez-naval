@@ -1,6 +1,6 @@
 import { isInBounds, getCellKind, isPassable } from './board';
 import { canPassMines } from './pieces';
-import type { Piece, Mine, GameState } from './types';
+import type { Piece, Mine } from './types';
 import { ORTHOGONAL_DIRS } from './lineOfSight';
 
 /**

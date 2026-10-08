@@ -1,4 +1,4 @@
-import type { Player, GameState } from './types';
+import type { Player } from './types';
 
 export const INITIAL_TOKENS: number[] = [2, 3, 4, 5, 6];
 export const FULL_TOKEN_COUNT = 6; // including the "1" start token

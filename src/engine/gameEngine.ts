@@ -2,14 +2,13 @@
  * Pure game engine — all state transitions.
  * No side effects, no imports from React/UI.
  */
-import type { GameState, Player, Piece, Mine, CombatResult } from './types';
-import { createFleet, getCategory, getNominalRange, getActualRange, canPassMines, pieceLabel } from './pieces';
+import type { GameState, Player, Piece } from './types';
+import { createFleet, getNominalRange, getActualRange, pieceLabel } from './pieces';
 import { resolveCombat, isFatalResult } from './combat';
-import { getTargetableCells, hasLineOfSight } from './lineOfSight';
-import { applyMove, pathCost } from './movement';
+import { hasLineOfSight } from './lineOfSight';
+import { applyMove } from './movement';
 import { initialTokens, transferToken, enforceOlvidos } from './tokens';
-import { getCellKind, isWorkshop, getSetupCells } from './board';
-import { boardConfig } from '../config/boardConfig';
+import { getCellKind, getSetupCells } from './board';
 
 // ─── Initial state ───────────────────────────────────────────────────────────
 
@@ -154,7 +153,6 @@ export function movePiece(
   }
 
   // Check victory
-  const opponent: Player = piece.owner === 'A' ? 'B' : 'A';
   const arrivalKind = getCellKind(destination.r, destination.c);
   const isVictoryCell =
     (piece.owner === 'A' && arrivalKind === 'arrivalB') ||

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState, Player } from '../engine/types';
+import type { GameState } from '../engine/types';
 import {
   createInitialState,
   placePieceInSetup,
