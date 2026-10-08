@@ -15,7 +15,7 @@ import {
   confirmHandoff,
   canSeeIdentity,
 } from '../engine/gameEngine';
-import { getReachableCells } from '../engine/movement';
+import { findPath, getReachableCells } from '../engine/movement';
 import { randomDeployment, taskForceDeployment } from '../engine/deployment';
 import { getTargetableCells } from '../engine/lineOfSight';
 import { getActualRange, getNominalRange } from '../engine/pieces';
@@ -75,7 +75,7 @@ function applyOrError(
   set: (fn: (s: GameStore) => Partial<GameStore>) => void,
 ) {
   if (typeof result === 'string') {
-    set(() => ({ ui: { ...initUI(), errorMessage: esError(result) } } as Partial<GameStore>));
+    set(s => ({ ui: { ...s.ui, errorMessage: esError(result) } } as Partial<GameStore>));
   } else {
     set(() => ({ game: result, ui: initUI() } as Partial<GameStore>));
   }
@@ -183,9 +183,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { game, ui } = get();
     if (!ui.selectedPieceId) return;
     const pieceId = ui.selectedPieceId;
-    const result = movePiece(game, pieceId, destination);
-    applyOrError(result, set);
-    if (typeof result !== 'string' && get().game.phase === 'play') {
+    const piece = game.pieces.find(p => p.id === pieceId);
+
+    // El motor mueve de a una casilla: un destino lejano se recorre paso a paso.
+    const path = piece ? findPath(piece, destination, game.pieces, game.mines) : null;
+    const steps = path ?? [destination];
+    if (piece && path && game.selectedNumberToken !== null) {
+      const remaining = game.selectedNumberToken - game.movementBudgetSpent;
+      if (path.length * (piece.damaged ? 2 : 1) > remaining) {
+        applyOrError('Not enough movement budget', set);
+        return;
+      }
+    }
+
+    let state = game;
+    for (const step of steps) {
+      const result = movePiece(state, pieceId, step);
+      if (typeof result === 'string') { applyOrError(result, set); return; }
+      state = result;
+      if (state.phase !== 'play') break;
+      if (!state.pieces.find(p => p.id === pieceId)?.pos) break;
+    }
+    applyOrError(state, set);
+    if (get().game.phase === 'play') {
       const moved = get().game.pieces.find(p => p.id === pieceId);
       if (moved?.pos) get().selectPiece(pieceId);
     }

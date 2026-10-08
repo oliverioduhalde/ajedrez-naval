@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { useSettings } from '../../store/settingsStore';
 import { Board } from '../components/Board';
@@ -8,7 +8,7 @@ import { SystemHeader } from '../components/SystemHeader';
 import { HamburgerMenu } from '../components/HamburgerMenu';
 import { ViewControls } from '../components/BoardViewport';
 import { PieceZoomModal } from '../components/PieceZoomModal';
-import { useStackedLayout } from '../hooks/useStackedLayout';
+import { useNarrowScreen, useShortScreen, useStackedLayout } from '../hooks/useStackedLayout';
 import { Btn, Card, Label, mix } from '../ui';
 
 const RAIL_W = 'clamp(210px, 22vw, 262px)';
@@ -28,12 +28,22 @@ const RailContent: React.FC<{ viewAs: 'A' | 'B'; onHide: () => void; hideLabel: 
 );
 
 export const GameScreen: React.FC = () => {
-  const { game, resetGame } = useGameStore();
+  const { game, resetGame, doEndTurn, clearError } = useGameStore();
+  const errorMessage = useGameStore(s => s.ui.errorMessage);
   const stacked = useStackedLayout();
+  const narrow = useNarrowScreen();
+  const short = useShortScreen();
   const vsCpu = useSettings(s => s.vsCpu);
   const collapsed = useSettings(s => s.railCollapsed);
   const setSetting = useSettings(s => s.set);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Los rechazos del motor se avisan sobre el tablero y se apagan solos.
+  useEffect(() => {
+    if (!errorMessage) return;
+    const t = window.setTimeout(clearError, 4000);
+    return () => window.clearTimeout(t);
+  }, [errorMessage, clearError]);
   const viewAs = vsCpu ? 'A' : game.turn;
   const locked = vsCpu && game.turn !== 'A';
 
@@ -73,6 +83,7 @@ export const GameScreen: React.FC = () => {
   const showFull = !stacked && !collapsed;
   const turnColor = game.turn === 'A' ? 'var(--main)' : 'var(--rv)';
   const budget = game.selectedNumberToken !== null ? game.selectedNumberToken - game.movementBudgetSpent : null;
+  const canEndTurn = game.phase === 'play' && game.turn === viewAs && budget !== null;
 
   const expand = () => {
     if (stacked) setDrawerOpen(o => !o);
@@ -83,6 +94,24 @@ export const GameScreen: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', gap: 4, height: '100%', overflow: 'hidden', position: 'relative' }}>
       <Board viewAs={viewAs} locked={locked} />
       <PieceZoomModal viewAs={viewAs} />
+
+      {errorMessage && (
+        <div
+          role="alert"
+          onClick={clearError}
+          style={{
+            position: 'absolute', top: 8, left: 0, right: 0, margin: '0 auto', zIndex: 60,
+            width: 'min(420px, calc(100% - 24px))', boxSizing: 'border-box', textAlign: 'center',
+            border: '1px solid var(--danger)', background: 'var(--bg)',
+            backgroundImage: `linear-gradient(${mix('var(--danger)', 14)}, ${mix('var(--danger)', 14)})`,
+            borderRadius: 6, color: 'var(--danger)', padding: '8px 12px',
+            fontSize: 12.5, fontWeight: 600, lineHeight: 1.4, cursor: 'pointer',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.5)', animation: 'popin 0.12s ease-out',
+          }}
+        >
+          {errorMessage}
+        </div>
+      )}
 
       {showFull ? (
         <aside style={{
@@ -121,8 +150,21 @@ export const GameScreen: React.FC = () => {
               mov.<br /><b style={{ fontSize: 15, color: 'var(--main)' }}>{budget}</b>
             </div>
           )}
+          {canEndTurn && (
+            <button
+              onClick={doEndTurn}
+              title="Terminar turno"
+              style={{
+                height: 36, minWidth: 36, padding: '0 10px', flexShrink: 0, borderRadius: 4, cursor: 'pointer',
+                border: '1px solid var(--main)', background: mix('var(--main)', 18), color: 'var(--main)',
+                fontSize: 12, fontWeight: 800,
+              }}
+            >
+              Fin
+            </button>
+          )}
           <div style={stacked ? { marginLeft: 'auto', flexShrink: 0 } : { marginTop: 'auto' }}>
-            <ViewControls vertical={!stacked} />
+            <ViewControls vertical={!stacked} compact={stacked ? narrow : short} />
           </div>
         </aside>
       )}

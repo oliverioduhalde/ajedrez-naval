@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import type { Player } from '../../engine/types';
 import { getCellKind } from '../../engine/board';
 import { useGameStore, canSeeIdentity } from '../../store/gameStore';
@@ -7,6 +7,7 @@ import { getReachableCells } from '../../engine/movement';
 import { getTargetableCells } from '../../engine/lineOfSight';
 import { getActualRange, getNominalRange } from '../../engine/pieces';
 import { PieceToken } from './PieceToken';
+import { PieceActionMenu, type DisplayRect } from './PieceActionMenu';
 import { RadarCanvas } from './RadarCanvas';
 import { BoardViewport } from './BoardViewport';
 import { IconMine } from './PieceIcons';
@@ -15,6 +16,7 @@ import { mix } from '../ui';
 import { useSideTones } from '../theme';
 import { displayDims, mapCell, mapRect, mapSide, sideBorder, type Rot, type Side } from '../boardRotation';
 
+const DOUBLE_CLICK_MS = 350;
 const COLS = boardConfig.cols;
 const ROWS = boardConfig.rows;
 
@@ -67,7 +69,7 @@ function columnLabelStyle(rot: Rot, cellSize: number, dc: number, dr: number, ro
 interface Props { viewAs: Player; locked?: boolean }
 
 export const Board: React.FC<Props> = ({ viewAs, locked }) => {
-  const { game, ui, selectPiece, inspect, openPieceZoom, doMove, doAttack, doRecon, doPlaceMine, doLiftMine } = useGameStore();
+  const { game, ui, selectPiece, inspect, openPieceZoom, setMode, doMove, doAttack, doRecon, doPlaceMine, doLiftMine } = useGameStore();
   const tones = useSideTones();
   const showRanges = useSettings(s => s.showRanges);
   const pieceZoomOn = useSettings(s => s.pieceZoomOn);
@@ -102,13 +104,22 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
     return { move, fire };
   }, [showRanges, ui.inspectId, game.pieces, game.mines, game.turn, game.selectedNumberToken, game.movementBudgetSpent, game.numberTokens, game.options.advancedActualRange, viewAs]);
 
+  // Tocar de nuevo la ficha seleccionada la deselecciona, pero con una pequeña espera
+  // para que un doble clic (que abre el popup) no la deseleccione antes.
+  const pendingDeselect = useRef<number | null>(null);
+  const cancelPendingDeselect = () => {
+    if (pendingDeselect.current !== null) { window.clearTimeout(pendingDeselect.current); pendingDeselect.current = null; }
+  };
+  useEffect(() => cancelPendingDeselect, []);
+
   function handleCellClick(r: number, c: number) {
     const piece = pieceMap.get(`${r},${c}`);
+    cancelPendingDeselect();
 
     if (piece && pieceZoomOn) {
       const now = performance.now();
       const last = lastClick.current;
-      if (last && last.id === piece.id && now - last.t < 350) {
+      if (last && last.id === piece.id && now - last.t < DOUBLE_CLICK_MS) {
         lastClick.current = null;
         openPieceZoom(piece.id);
         return;
@@ -123,8 +134,32 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
       return;
     }
 
+    // Mientras se apunta (ataque, reconocimiento, minas), tocar una ficha propia no actúa sobre
+    // esa casilla: cambia la selección a esa ficha, o vuelve a "mover" si es la ya seleccionada.
+    const targeting = ui.mode === 'attacking' || ui.mode === 'reconning'
+      || ui.mode === 'placingMine' || ui.mode === 'liftingMine';
+    if (piece && piece.owner === game.turn && targeting) {
+      if (piece.id === ui.selectedPieceId) {
+        setMode('idle');
+      } else {
+        setMode('idle');
+        selectPiece(piece.id);
+      }
+      return;
+    }
+
     if (ui.mode === 'moving' || ui.mode === 'idle') {
-      if (piece?.owner === game.turn) { selectPiece(piece.id); return; }
+      if (piece?.owner === game.turn) {
+        if (piece.id !== ui.selectedPieceId) { selectPiece(piece.id); return; }
+        if (!pieceZoomOn) { selectPiece(null); return; }
+        const id = piece.id;
+        pendingDeselect.current = window.setTimeout(() => {
+          pendingDeselect.current = null;
+          const st = useGameStore.getState();
+          if (st.ui.selectedPieceId === id) st.selectPiece(null);
+        }, DOUBLE_CLICK_MS);
+        return;
+      }
       if (ui.selectedPieceId && highlightSet.has(`${r},${c}`)) { doMove({ r, c }); return; }
       if (piece) { inspect(piece.id); return; }
       selectPiece(null);
@@ -295,6 +330,34 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                 );
               })}
             </div>
+
+            {(() => {
+              if (locked || game.phase !== 'play' || ui.zoomPieceId) return null;
+              const sel = ui.selectedPieceId ? game.pieces.find(p => p.id === ui.selectedPieceId) : undefined;
+              if (!sel || !sel.pos || sel.owner !== game.turn || sel.owner !== viewAs) return null;
+
+              const rectOf = (r: number, c: number): DisplayRect => {
+                const { row, col } = mapCell(rot, r, c, COLS, ROWS);
+                return { left: (col - 1) * cellSize, top: (row - 1) * cellSize, width: cellSize, height: cellSize };
+              };
+              const avoid: DisplayRect[] = ui.highlightedCells.map(h => rectOf(h.r, h.c));
+              for (const id of ui.targetablePieceIds) {
+                const t = game.pieces.find(p => p.id === id);
+                if (t?.pos) avoid.push(rectOf(t.pos.r, t.pos.c));
+              }
+              if (ui.mode === 'liftingMine') for (const m of game.mines) avoid.push(rectOf(m.r, m.c));
+
+              return (
+                <PieceActionMenu
+                  key={sel.id}
+                  piece={sel}
+                  anchor={rectOf(sel.pos.r, sel.pos.c)}
+                  boardW={boardW}
+                  boardH={boardH}
+                  avoid={avoid}
+                />
+              );
+            })()}
 
             {cellSize >= 24 && (
               <div style={{

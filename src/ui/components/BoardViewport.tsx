@@ -89,7 +89,7 @@ export const BoardViewport: React.FC<Props> = ({ cols, rows, children }) => {
       ref={wrapRef}
       style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}
     >
-      <div style={{ position: 'absolute', inset: 0, overflow: 'auto', display: 'flex', padding: PAD, touchAction: 'pan-x pan-y' }}>
+      <div data-board-scroller style={{ position: 'absolute', inset: 0, overflow: 'auto', display: 'flex', padding: PAD, touchAction: 'pan-x pan-y' }}>
         <div style={{ margin: 'auto', position: 'relative', width: cell * dc, height: cell * dr, flexShrink: 0 }}>
           {size.w > 0 && children(cell, rot)}
         </div>
@@ -119,7 +119,8 @@ const IconBtn: React.FC<{
   </button>
 );
 
-export const ViewControls: React.FC<{ vertical?: boolean }> = ({ vertical }) => {
+/** `compact` oculta − y + (en el celular se hace zoom con los dedos y desde el menú). */
+export const ViewControls: React.FC<{ vertical?: boolean; compact?: boolean }> = ({ vertical, compact }) => {
   const zoom = useSettings(s => s.zoom);
   const zoomBy = useSettings(s => s.zoomBy);
   const resetZoom = useSettings(s => s.resetZoom);
@@ -132,14 +133,14 @@ export const ViewControls: React.FC<{ vertical?: boolean }> = ({ vertical }) => 
 
   return (
     <div style={{ display: 'flex', flexDirection: vertical ? 'column' : 'row', gap: 4 }}>
-      <IconBtn label="−" title="Alejar (Ctrl + rueda)" disabled={zoom <= ZOOM_MIN} onClick={() => zoomBy(1 / ZOOM_STEP)} />
+      {!compact && <IconBtn label="−" title="Alejar (Ctrl + rueda)" disabled={zoom <= ZOOM_MIN} onClick={() => zoomBy(1 / ZOOM_STEP)} />}
       <IconBtn
         label={`${Math.round(zoom * 100)}%`}
         title="Ajustar a pantalla"
         wide
         onClick={resetZoom}
       />
-      <IconBtn label="+" title="Acercar (Ctrl + rueda)" disabled={zoom >= ZOOM_MAX} onClick={() => zoomBy(ZOOM_STEP)} />
+      {!compact && <IconBtn label="+" title="Acercar (Ctrl + rueda)" disabled={zoom >= ZOOM_MAX} onClick={() => zoomBy(ZOOM_STEP)} />}
       <IconBtn
         label={rotation === 'auto' ? '⟳A' : `⟳${rotation}°`}
         title="Rotar tablero 90° (en el menú: AUTO)"

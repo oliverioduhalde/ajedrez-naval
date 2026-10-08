@@ -132,3 +132,54 @@ export function applyMove(
 
   return { pieces: newPieces, mines: newMines, destroyed, repairedAt };
 }
+
+/**
+ * Camino más corto (casilla por casilla, sin incluir el origen) desde piece.pos
+ * hasta `dest`, con las mismas restricciones que `getReachableCells`:
+ * sin islas, sin casillas ocupadas y sin minas salvo piezas que las cruzan.
+ * Devuelve null si no hay camino.
+ */
+export function findPath(
+  piece: Piece,
+  dest: { r: number; c: number },
+  pieces: Piece[],
+  mines: Mine[],
+): { r: number; c: number }[] | null {
+  if (!piece.pos) return null;
+  const start = piece.pos;
+  if (start.r === dest.r && start.c === dest.c) return null;
+
+  const mineSet = new Set(mines.map(m => `${m.r},${m.c}`));
+  const occupied = new Set(
+    pieces.filter(p => p.pos && p.id !== piece.id).map(p => `${p.pos!.r},${p.pos!.c}`)
+  );
+  const key = (r: number, c: number) => `${r},${c}`;
+  const parent = new Map<string, string | null>([[key(start.r, start.c), null]]);
+  const queue: { r: number; c: number }[] = [start];
+
+  for (let head = 0; head < queue.length; head++) {
+    const cur = queue[head];
+    for (const { dr, dc } of ORTHOGONAL_DIRS) {
+      const nr = cur.r + dr;
+      const nc = cur.c + dc;
+      const k = key(nr, nc);
+      if (!isInBounds(nr, nc) || parent.has(k)) continue;
+      if (getCellKind(nr, nc) === 'island') continue;
+      if (mineSet.has(k) && !canPassMines(piece.type)) continue;
+      if (occupied.has(k)) continue;
+      parent.set(k, key(cur.r, cur.c));
+      if (nr === dest.r && nc === dest.c) {
+        const path: { r: number; c: number }[] = [];
+        let at: string | null = k;
+        while (at && at !== key(start.r, start.c)) {
+          const [r, c] = at.split(',').map(Number);
+          path.push({ r, c });
+          at = parent.get(at) ?? null;
+        }
+        return path.reverse();
+      }
+      queue.push({ r: nr, c: nc });
+    }
+  }
+  return null;
+}

@@ -11,12 +11,11 @@ interface Props { viewAs: Player }
 const sideVar = (p: Player) => (p === 'A' ? 'var(--main)' : 'var(--rv)');
 
 export const ActionPanel: React.FC<Props> = ({ viewAs }) => {
-  const { game, ui, selectToken, setMode, doEndTurn, clearError } = useGameStore();
+  const { game, ui, selectToken, selectPiece, doEndTurn } = useGameStore();
   const isMyTurn = game.turn === viewAs && game.phase === 'play';
   const tokenSelected = game.selectedNumberToken !== null;
   const tokens = game.numberTokens[viewAs];
   const budget = tokenSelected ? game.selectedNumberToken! - game.movementBudgetSpent : 0;
-  const minesLeft = 15 - game.mines.filter(m => m.owner === viewAs).length;
   const vsCpu = useSettings(s => s.vsCpu);
   const cpuLevel = useSettings(s => s.cpuLevel);
   const thinking = useCpuStatus(s => s.thinking);
@@ -25,16 +24,6 @@ export const ActionPanel: React.FC<Props> = ({ viewAs }) => {
 
   return (
     <div style={{ width: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {ui.errorMessage && (
-        <div onClick={clearError} style={{
-          border: '1px solid var(--danger)', background: mix('var(--danger)', 12),
-          borderRadius: 6, color: 'var(--danger)', padding: '8px 10px',
-          fontSize: 12, cursor: 'pointer', lineHeight: 1.4,
-        }}>
-          {ui.errorMessage}
-        </div>
-      )}
-
       <Card>
         <Label>Turno activo</Label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
@@ -70,7 +59,12 @@ export const ActionPanel: React.FC<Props> = ({ viewAs }) => {
             {tokens.map((t, i) => (
               <button
                 key={`${t}-${i}`}
-                onClick={() => selectToken(t)}
+                onClick={() => {
+                  const id = ui.selectedPieceId;
+                  selectToken(t);
+                  // Elegir la ficha de movimiento no debe soltar la pieza seleccionada.
+                  if (id && useGameStore.getState().game.selectedNumberToken === t) selectPiece(id);
+                }}
                 style={{
                   width: 36, height: 36, border: '1px solid var(--main-soft)', borderRadius: 4,
                   background: 'transparent', color: 'var(--main)', fontSize: 15, fontWeight: 800, cursor: 'pointer',
@@ -87,28 +81,13 @@ export const ActionPanel: React.FC<Props> = ({ viewAs }) => {
 
       {isMyTurn && tokenSelected && (
         <Card>
-          <Label>Acciones</Label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8 }}>
-            <Btn active={ui.mode === 'moving'} onClick={() => setMode(ui.mode === 'moving' ? 'idle' : 'moving')}>Mover</Btn>
-            <Btn
-              active={ui.mode === 'attacking'}
-              disabled={game.attackOrReconUsedThisTurn}
-              onClick={() => setMode(ui.mode === 'attacking' ? 'idle' : 'attacking')}
-            >Atacar</Btn>
-            <Btn
-              active={ui.mode === 'reconning'}
-              disabled={game.attackOrReconUsedThisTurn}
-              onClick={() => setMode(ui.mode === 'reconning' ? 'idle' : 'reconning')}
-            >Reconocer</Btn>
-            <Btn active={ui.mode === 'placingMine'} onClick={() => setMode(ui.mode === 'placingMine' ? 'idle' : 'placingMine')}>
-              Colocar mina ({minesLeft})
-            </Btn>
-            <Btn active={ui.mode === 'liftingMine'} onClick={() => setMode(ui.mode === 'liftingMine' ? 'idle' : 'liftingMine')}>
-              Levantar mina
-            </Btn>
-            <div style={{ height: 1, background: 'var(--line)', margin: '3px 0' }} />
-            <Btn accent onClick={doEndTurn}>Terminar turno</Btn>
+          <Label>Tu jugada</Label>
+          <div style={{ fontSize: 12, color: 'var(--main-soft)', lineHeight: 1.45, marginTop: 6 }}>
+            {ui.selectedPieceId
+              ? 'Usá el menú junto a la ficha para mover, atacar o usar su habilidad.'
+              : 'Tocá una de tus fichas: junto a ella aparecen sus acciones.'}
           </div>
+          <Btn accent onClick={doEndTurn} style={{ marginTop: 8, width: '100%', textAlign: 'center' }}>Terminar turno</Btn>
         </Card>
       )}
 

@@ -68,3 +68,8 @@ input[type='range'] { accent-color: var(--main, #2ee86f); }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--main-line, #1d3a28); border-radius: 3px; }
+
+/* Botones del menú emergente de las fichas */
+.menu-btn { transition: filter 0.12s; }
+@media (hover: hover) { .menu-btn:hover:not(:disabled) { filter: brightness(1.35); } }
+.menu-btn:active:not(:disabled) { filter: brightness(0.9); }
