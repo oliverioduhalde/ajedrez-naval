@@ -86,7 +86,7 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
         ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI * 2); ctx.fill();
       }
 
-      angle += 0.018; // rotation speed
+      angle += 0.0036; // rotation speed
       if (angle > Math.PI * 2) angle -= Math.PI * 2;
 
       rafRef.current = requestAnimationFrame(draw);

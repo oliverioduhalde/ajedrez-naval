@@ -8,14 +8,11 @@ export const CRTOverlay: React.FC<{ children: React.ReactNode }> = ({ children }
       height: '100%',
       overflow: 'hidden',
       background: '#000a02',
-      animation: 'crt-flicker 8s infinite, flicker-fast 0.15s infinite',
     }}>
-      {/* Glitch layer wraps everything */}
       <div style={{
         position: 'relative',
         width: '100%',
         height: '100%',
-        animation: 'glitch-h 12s infinite, glitch-rgb 12s infinite',
       }}>
         {children}
       </div>
