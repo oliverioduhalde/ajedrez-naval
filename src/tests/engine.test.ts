@@ -2,21 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { resolveCombat } from '../engine/combat';
 import { hasLineOfSight, getTargetableCells } from '../engine/lineOfSight';
 import { getReachableCells, pathCost, applyMove } from '../engine/movement';
-import { getNominalRange, getActualRange, createFleet } from '../engine/pieces';
-import { enforceOlvidos, transferToken } from '../engine/tokens';
+import { getNominalRange, getActualRange } from '../engine/pieces';
+import { enforceOlvidos } from '../engine/tokens';
 import { generateRandomIslands } from '../engine/board';
 import {
   createInitialState,
-  placePieceInSetup,
-  finishSetup,
   selectNumberToken,
   movePiece,
   attackPiece,
-  reconPiece,
   placeMine,
   liftMine,
   endTurn,
-  confirmHandoff,
 } from '../engine/gameEngine';
 import type { Piece, GameState } from '../engine/types';
 

@@ -10,8 +10,6 @@ import { boardConfig } from '../../config/boardConfig';
 const COLS = boardConfig.cols;
 const ROWS = boardConfig.rows;
 
-const P = '#00ff66';
-
 function cellBg(kind: string, highlighted: boolean, targetable: boolean): string {
   if (highlighted)  return 'rgba(0,255,100,0.18)';
   if (targetable)   return 'rgba(255,30,0,0.18)';

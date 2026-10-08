@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState, Player, Piece } from '../engine/types';
+import type { GameState, Player } from '../engine/types';
 import {
   createInitialState,
   placePieceInSetup,
@@ -61,7 +61,6 @@ const initUI = (): UIState => ({
 function applyOrError(
   result: GameState | string,
   set: (fn: (s: GameStore) => Partial<GameStore>) => void,
-  getGame: () => GameState,
 ) {
   if (typeof result === 'string') {
     set(() => ({ ui: { ...initUI(), errorMessage: result } } as Partial<GameStore>));
@@ -76,17 +75,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   placePiece(pieceId, pos) {
     const result = placePieceInSetup(get().game, pieceId, pos);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   finishSetup() {
     const result = finishSetup(get().game);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   selectToken(token) {
     const result = selectNumberToken(get().game, token);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   selectPiece(pieceId) {
@@ -133,40 +132,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { game, ui } = get();
     if (!ui.selectedPieceId) return;
     const result = movePiece(game, ui.selectedPieceId, destination);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   doAttack(targetId) {
     const { game, ui } = get();
     if (!ui.selectedPieceId) return;
     const result = attackPiece(game, ui.selectedPieceId, targetId);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   doRecon(targetId) {
     const { game, ui } = get();
     if (!ui.selectedPieceId) return;
     const result = reconPiece(game, ui.selectedPieceId, targetId);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   doPlaceMine(pos) {
     const { game, ui } = get();
     if (!ui.selectedPieceId) return;
     const result = placeMine(game, ui.selectedPieceId, pos);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   doLiftMine(pos) {
     const { game, ui } = get();
     if (!ui.selectedPieceId) return;
     const result = liftMine(game, ui.selectedPieceId, pos);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   doEndTurn() {
     const result = endTurn(get().game);
-    applyOrError(result, set, () => get().game);
+    applyOrError(result, set);
   },
 
   confirmHandoff() {

@@ -16,8 +16,6 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
     const maxR = Math.sqrt(cx * cx + cy * cy);
 
     let angle = 0;
-    // trail buffer — cells that were recently swept glow briefly
-    const trail: { x: number; y: number; alpha: number }[] = [];
 
     function draw() {
       // Dark background fill
@@ -54,9 +52,6 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
       for (let t = 0; t < 60; t++) {
         const a = angle - (trailSpan / 60) * t;
         const alpha = (1 - t / 60) * 0.18;
-        const grad = ctx.createConicalGradient
-          ? null // not standard; use wedge approach
-          : null;
 
         ctx.beginPath();
         ctx.moveTo(cx, cy);

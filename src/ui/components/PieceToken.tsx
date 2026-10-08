@@ -13,10 +13,6 @@ interface Props {
   onClick?: () => void;
 }
 
-const P = '#00ff66';
-const PA = '#00ffaa';
-const PD = '#00aa44';
-
 // Player A = brighter green, Player B = amber/orange (enemy on radar)
 const COLORS: Record<Player, { primary: string; border: string; glow: string }> = {
   A: { primary: '#00ff66', border: '#00cc44', glow: 'rgba(0,255,100,0.6)' },
