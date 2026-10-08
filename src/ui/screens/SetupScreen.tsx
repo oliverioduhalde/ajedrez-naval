@@ -96,7 +96,7 @@ export const SetupScreen: React.FC = () => {
           return (
             <div style={{
               position: 'absolute', inset: 0, overflow: 'hidden',
-              border: `1px solid ${mix('var(--main)', 35)}`,
+              border: `1px solid ${mix('var(--sea)', 45)}`,
             }}>
               <RadarCanvas width={boardW} height={boardH} />
 
@@ -108,18 +108,18 @@ export const SetupScreen: React.FC = () => {
                 const { row, col } = mapCell(rot, r, c, COLS, ROWS);
 
                 const bg = isVT ? mix(sideVar, 20)
-                  : kind === 'island' ? mix('var(--main)', 14)
-                  : kind === 'workshop' ? mix('var(--main)', 22)
-                  : kind === 'bay' ? mix('var(--main)', 10)
+                  : kind === 'island' ? mix('var(--sea)', 18)
+                  : kind === 'workshop' ? mix('var(--sea)', 26)
+                  : kind === 'bay' ? mix('var(--sea)', 12)
                   : kind === 'arrivalA' ? mix('var(--main)', 9)
                   : kind === 'arrivalB' ? mix('var(--rv)', 9)
                   : 'transparent';
-                const bdr = isVT ? mix(sideVar, 55) : mix('var(--main)', 9);
+                const bdr = isVT ? mix(sideVar, 55) : mix('var(--sea)', 20);
                 const border: Record<string, string> = {
                   borderRight: `1px solid ${bdr}`,
                   borderBottom: `1px solid ${bdr}`,
                 };
-                if (c === 12) border[sideBorder(foldSide)] = `1px solid ${mix('var(--main)', 35)}`;
+                if (c === 12) border[sideBorder(foldSide)] = `1px solid ${mix('var(--sea)', 45)}`;
 
                 const own = piece && piece.owner === player;
                 return (
@@ -140,7 +140,7 @@ export const SetupScreen: React.FC = () => {
                     {kind === 'island' && (
                       <div style={{
                         position: 'absolute', inset: 0,
-                        background: `repeating-linear-gradient(45deg, ${mix('var(--main)', 22)} 0, ${mix('var(--main)', 22)} 2px, transparent 2px, transparent 6px)`,
+                        background: `repeating-linear-gradient(45deg, ${mix('var(--sea)', 30)} 0, ${mix('var(--sea)', 30)} 2px, transparent 2px, transparent 6px)`,
                         pointerEvents: 'none',
                       }} />
                     )}

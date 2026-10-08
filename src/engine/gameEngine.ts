@@ -8,7 +8,7 @@ import { resolveCombat, isFatalResult } from './combat';
 import { hasLineOfSight } from './lineOfSight';
 import { applyMove } from './movement';
 import { initialTokens, transferToken, enforceOlvidos } from './tokens';
-import { getCellKind, getSetupCells } from './board';
+import { getCellKind, getSetupCells, isInBounds } from './board';
 
 // ─── Initial state ───────────────────────────────────────────────────────────
 
@@ -152,6 +152,14 @@ export function movePiece(
   }
 
   if (budget < stepCost) return 'Not enough movement budget';
+
+  // Las piezas nunca se encima: solo se entra a casillas del tablero, no isla y desocupadas.
+  if (!isInBounds(destination.r, destination.c) || getCellKind(destination.r, destination.c) === 'island') {
+    return 'Destination is not navigable';
+  }
+  if (state.pieces.some(p => p.id !== piece.id && p.pos && p.pos.r === destination.r && p.pos.c === destination.c)) {
+    return 'Cell already occupied';
+  }
 
   const result = applyMove(piece, destination, state);
   if (result.destroyed) {

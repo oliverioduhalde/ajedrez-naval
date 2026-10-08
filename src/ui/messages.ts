@@ -8,6 +8,7 @@ const ES: Record<string, string> = {
   'Cell already occupied': 'Esa casilla ya está ocupada.',
   'All pieces must be placed': 'Tenés que desplegar las 16 piezas antes de continuar.',
   'Not in play phase': 'Ahora no es la fase de juego.',
+  'Destination is not navigable': 'Esa casilla no es navegable.',
   'Token not available': 'Esa ficha no está disponible.',
   'Token already selected': 'Ya elegiste una ficha en este turno.',
   'Select a number token first': 'Elegí primero una ficha de número.',

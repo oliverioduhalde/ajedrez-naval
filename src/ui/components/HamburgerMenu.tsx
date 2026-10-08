@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { CPU_AVAILABLE, useSettings, ZOOM_MAX, ZOOM_MIN } from '../../store/settingsStore';
 import { CPU_LEVELS } from '../../ai/types';
-import { PALETTES, paletteSwatch, resolveRival, type PaletteId } from '../theme';
+import { PALETTES, paletteSwatch, resolveBoard, resolveRival, type PaletteId } from '../theme';
 import { mix } from '../ui';
 
 const Toggle: React.FC<{
@@ -91,13 +91,13 @@ const MiniBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onCl
 );
 
 const Swatches: React.FC<{
-  value: string; onPick: (id: PaletteId) => void; disabledId?: PaletteId; extra?: React.ReactNode;
-}> = ({ value, onPick, disabledId, extra }) => (
+  value: string; onPick: (id: PaletteId) => void; disabledIds?: PaletteId[]; extra?: React.ReactNode;
+}> = ({ value, onPick, disabledIds = [], extra }) => (
   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
     {extra}
     {PALETTES.map(p => {
       const selected = value === p.id;
-      const disabled = disabledId === p.id;
+      const disabled = disabledIds.includes(p.id);
       return (
         <button
           key={p.id}
@@ -123,6 +123,7 @@ export const HamburgerMenu: React.FC = () => {
   const opts = game.options;
   const st = useSettings();
   const rivalId = resolveRival(st.colorMain, st.colorRival);
+  const boardId = resolveBoard(st.colorMain, rivalId, st.colorBoard);
 
   function update(patch: Partial<typeof opts>) {
     resetGame({ ...opts, ...patch });
@@ -199,7 +200,7 @@ export const HamburgerMenu: React.FC = () => {
         <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 8 }}>Color del rival (jugador B)</div>
         <Swatches
           value={st.colorRival === 'auto' ? rivalId : st.colorRival}
-          disabledId={st.colorMain}
+          disabledIds={[st.colorMain]}
           onPick={id => st.set({ colorRival: id })}
           extra={
             <button
@@ -217,6 +218,15 @@ export const HamburgerMenu: React.FC = () => {
         />
         <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
           El rival siempre usa un color distinto al general. En Auto se elige el contraste: verde con ámbar, por ejemplo.
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 8 }}>Color del tablero</div>
+        <Swatches
+          value={boardId}
+          disabledIds={[st.colorMain, rivalId]}
+          onPick={id => st.set({ colorBoard: id })}
+        />
+        <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
+          El tablero (mar, islas, grilla y radar) tiene un tercer color, distinto al de las fichas de los dos jugadores. Por defecto, azul mar.
         </div>
 
         <Section>Radar</Section>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState } from '../engine/gameEngine';
 import type { GameState, Piece, UnitType } from '../engine/types';
-import { getPieceActions, modeHint, MAX_MINES } from '../ui/pieceActions';
+import { getPieceActions, getTurnStatus, modeHint, MAX_MINES } from '../ui/pieceActions';
 import { placeMenu, type DisplayRect } from '../ui/components/PieceActionMenu';
 
 function playState(over: Partial<GameState> = {}): GameState {
@@ -148,5 +148,72 @@ describe('colocación del menú', () => {
     expect(['below', 'above']).toContain(p.side);
     expect(p.left).toBeGreaterThanOrEqual(0);
     expect(p.left + W).toBeLessThanOrEqual(230);
+  });
+});
+
+describe('getTurnStatus: ¿queda algo por hacer?', () => {
+  const enemy = (type: UnitType, pos: { r: number; c: number }, id = 'B-e'): Piece =>
+    ({ id, owner: 'B', type, pos, damaged: false, revealedTo: [] });
+  const mk = (pieces: Piece[], over: Partial<GameState> = {}) => playState({ pieces, ...over });
+
+  it('sin ficha de movimiento elegida no ofrece nada', () => {
+    const g = mk([piece('Fragata')], { selectedNumberToken: null });
+    expect(getTurnStatus(g).canAct).toBe(false);
+  });
+
+  it('con movimiento disponible puede actuar', () => {
+    const g = mk([piece('Fragata', { pos: { r: 10, c: 10 } })]);
+    expect(getTurnStatus(g)).toMatchObject({ canMove: true, canAct: true });
+  });
+
+  it('agotado el movimiento y sin rivales a la vista no queda nada', () => {
+    const g = mk(
+      [piece('Fragata', { pos: { r: 10, c: 10 } }), enemy('Fragata', { r: 18, c: 20 })],
+      { movementBudgetSpent: 4 },
+    );
+    expect(getTurnStatus(g)).toEqual({ canMove: false, canAttack: false, canRecon: false, canAct: false });
+  });
+
+  it('agotado el movimiento, un rival a tiro todavía permite atacar', () => {
+    const g = mk(
+      [piece('Acorazado', { pos: { r: 10, c: 10 } }), enemy('Fragata', { r: 10, c: 13 })],
+      { movementBudgetSpent: 4 },
+    );
+    expect(getTurnStatus(g)).toMatchObject({ canMove: false, canAttack: true, canAct: true });
+    expect(getTurnStatus({ ...g, attackOrReconUsedThisTurn: true }).canAct).toBe(false);
+  });
+
+  it('un rival fuera de alcance o tapado por otra pieza no cuenta', () => {
+    const far = mk(
+      [piece('Fragata', { pos: { r: 10, c: 10 } }), enemy('Fragata', { r: 10, c: 14 })],
+      { movementBudgetSpent: 4 },
+    );
+    expect(getTurnStatus(far).canAttack).toBe(false); // alcance 2
+    const blocked = mk(
+      [piece('Acorazado', { pos: { r: 10, c: 10 } }), piece('AvionReconocimiento', { id: 'A-c', pos: { r: 10, c: 11 } }), enemy('Fragata', { r: 10, c: 13 })],
+      { movementBudgetSpent: 4 },
+    );
+    expect(getTurnStatus(blocked).canAttack).toBe(false); // el tapador no ataca y el acorazado no ve al rival
+  });
+
+  it('el avión de reconocimiento reconoce a cualquier distancia con línea libre; el de combate no ataca tras moverse', () => {
+    const recon = mk(
+      [piece('AvionReconocimiento', { pos: { r: 10, c: 3 } }), enemy('Fragata', { r: 10, c: 20 })],
+      { movementBudgetSpent: 4 },
+    );
+    expect(getTurnStatus(recon)).toMatchObject({ canRecon: true, canAttack: false });
+    const combat = mk(
+      [piece('AvionCombate', { pos: { r: 10, c: 3 } }), enemy('Fragata', { r: 10, c: 20 })],
+      { movementBudgetSpent: 4 },
+    );
+    expect(getTurnStatus(combat).canAttack).toBe(false);
+    expect(getTurnStatus({ ...combat, movementBudgetSpent: 0 }).canAttack).toBe(true);
+  });
+
+  it('una pieza averiada no se mueve con 1 de movimiento, una sana sí', () => {
+    const damaged = mk([piece('Crucero', { pos: { r: 10, c: 10 }, damaged: true })], { movementBudgetSpent: 3 });
+    expect(getTurnStatus(damaged).canMove).toBe(false);
+    const healthy = mk([piece('Crucero', { pos: { r: 10, c: 10 } })], { movementBudgetSpent: 3 });
+    expect(getTurnStatus(healthy).canMove).toBe(true);
   });
 });

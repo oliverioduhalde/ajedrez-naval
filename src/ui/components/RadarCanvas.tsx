@@ -1,14 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { useSettings } from '../../store/settingsStore';
+import { useThemeKey } from '../theme';
 
 interface Props { width: number; height: number }
 
 const MAX_CANVAS_SIDE = 1600;
 const BASE_SPEED = 0.0036;
 
-function themeRgb(): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue('--main-rgb').trim();
-  return v || '46, 232, 111';
+function cssRgb(name: string, fallback: string): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
 }
 
 export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
@@ -17,7 +18,7 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
   const radarOn = useSettings(s => s.radarOn);
   const radarSpeed = useSettings(s => s.radarSpeed);
   const radarIntensity = useSettings(s => s.radarIntensity);
-  const colorMain = useSettings(s => s.colorMain);
+  const themeKey = useThemeKey();
   const live = useRef({ radarOn, radarSpeed, radarIntensity });
   live.current = { radarOn, radarSpeed, radarIntensity };
 
@@ -30,7 +31,9 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    const rgb = themeRgb();
+    // El mar usa el tercer color (el del tablero), distinto del de las fichas.
+    const rgb = cssRgb('--sea-rgb', '46, 150, 200');
+    const bg = cssRgb('--sea-bg-rgb', '4, 14, 22');
 
     const cx = width / 2;
     const cy = height / 2;
@@ -41,10 +44,10 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
     function draw() {
       const { radarOn: on, radarSpeed: speed, radarIntensity: k } = live.current;
 
-      ctx.fillStyle = 'rgba(4,10,7,0.9)';
+      ctx.fillStyle = `rgba(${bg},0.92)`;
       ctx.fillRect(0, 0, width, height);
 
-      ctx.strokeStyle = `rgba(${rgb},0.07)`;
+      ctx.strokeStyle = `rgba(${rgb},0.11)`;
       ctx.lineWidth = 1;
       const cols = 24, rows = 20;
       const cw = width / cols, rh = height / rows;
@@ -55,7 +58,7 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
         ctx.beginPath(); ctx.moveTo(0, r * rh); ctx.lineTo(width, r * rh); ctx.stroke();
       }
 
-      ctx.strokeStyle = `rgba(${rgb},0.1)`;
+      ctx.strokeStyle = `rgba(${rgb},0.14)`;
       for (let i = 1; i <= 4; i++) {
         ctx.beginPath();
         ctx.arc(cx, cy, (maxR / 4) * i, 0, Math.PI * 2);
@@ -112,7 +115,7 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
 
     draw();
     return () => cancelAnimationFrame(rafRef.current);
-  }, [width, height, scale, colorMain]);
+  }, [width, height, scale, themeKey]);
 
   return (
     <canvas

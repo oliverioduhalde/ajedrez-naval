@@ -17,6 +17,8 @@ export interface Settings {
   rotation: 'auto' | Rot;
   colorMain: PaletteId;
   colorRival: PaletteId | 'auto';
+  /** Tercer color: el del tablero (mar, islas, grilla, radar). Nunca coincide con el de las fichas. */
+  colorBoard: PaletteId;
   railCollapsed: boolean;
   pieceZoomOn: boolean;
   pieceZoomSize: number;
@@ -35,7 +37,7 @@ export const ZOOM_MIN = 0.3;
 export const ZOOM_MAX = 4;
 
 const KEY = 'ajedrez-naval-settings-v2';
-const PALETTE_IDS = ['verde', 'ambar', 'cian', 'azul', 'violeta', 'rojo', 'blanco'];
+const PALETTE_IDS = ['verde', 'ambar', 'cian', 'azul', 'violeta', 'rojo', 'blanco', 'mar'];
 
 const DEFAULTS: Settings = {
   radarOn: true,
@@ -49,6 +51,7 @@ const DEFAULTS: Settings = {
   rotation: 'auto',
   colorMain: 'verde',
   colorRival: 'auto',
+  colorBoard: 'mar',
   railCollapsed: false,
   pieceZoomOn: true,
   pieceZoomSize: 300,
@@ -72,6 +75,7 @@ function load(): Settings {
     if (![0, 90, 180, 270].includes(merged.rotation as number)) merged.rotation = 'auto';
     if (!PALETTE_IDS.includes(merged.colorMain)) merged.colorMain = 'verde';
     if (merged.colorRival !== 'auto' && !PALETTE_IDS.includes(merged.colorRival)) merged.colorRival = 'auto';
+    if (!PALETTE_IDS.includes(merged.colorBoard)) merged.colorBoard = 'mar';
     if (!CPU_AVAILABLE) merged.vsCpu = false;
     return merged;
   } catch {

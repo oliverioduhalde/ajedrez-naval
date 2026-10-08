@@ -1,5 +1,7 @@
 import type { GameState, Piece } from '../engine/types';
 import { getActualRange, getNominalRange } from '../engine/pieces';
+import { getReachableCells } from '../engine/movement';
+import { getTargetableCells } from '../engine/lineOfSight';
 
 export type ActionMode = 'moving' | 'attacking' | 'reconning' | 'placingMine' | 'liftingMine';
 
@@ -96,7 +98,7 @@ export function modeHint(mode: ActionMode, opts: { reachable: number; targets: n
   switch (mode) {
     case 'moving':
       return opts.reachable > 0
-        ? 'Tocá una casilla marcada para mover.'
+        ? 'Tocá una casilla marcada.'
         : 'No hay casillas alcanzables con el movimiento que queda.';
     case 'attacking':
       return opts.targets > 0
@@ -111,4 +113,47 @@ export function modeHint(mode: ActionMode, opts: { reachable: number; targets: n
     case 'liftingMine':
       return 'Tocá una mina del tablero para levantarla.';
   }
+}
+
+export interface TurnStatus {
+  canMove: boolean;
+  canAttack: boolean;
+  canRecon: boolean;
+  /** Queda algo por hacer: mover, atacar o reconocer (las minas no cuentan: siempre se pueden poner). */
+  canAct: boolean;
+}
+
+const NONE: TurnStatus = { canMove: false, canAttack: false, canRecon: false, canAct: false };
+
+/**
+ * ¿Qué le queda por hacer al jugador de turno? Sirve para avisar "Finalizar turno"
+ * cuando ninguna pieza puede moverse, atacar ni reconocer.
+ */
+export function getTurnStatus(game: GameState): TurnStatus {
+  if (game.phase !== 'play' || game.selectedNumberToken === null) return NONE;
+  const budget = game.selectedNumberToken - game.movementBudgetSpent;
+  const mine = game.pieces.filter(p => p.owner === game.turn && p.pos);
+  const enemyCells = new Set(
+    game.pieces.filter(p => p.owner !== game.turn && p.pos).map(p => `${p.pos!.r},${p.pos!.c}`),
+  );
+  const seesEnemy = (p: Piece, range: number) =>
+    getTargetableCells(p.pos!.r, p.pos!.c, range, game.pieces, game.mines)
+      .some(c => enemyCells.has(`${c.r},${c.c}`));
+
+  // getReachableCells incluye la casilla de origen (se puede ir y volver): no cuenta como movimiento.
+  const canMove = budget > 0 && mine.some(p =>
+    getReachableCells(p, budget, game.pieces, game.mines)
+      .some(c => c.r !== p.pos!.r || c.c !== p.pos!.c));
+
+  const canAttack = !game.attackOrReconUsedThisTurn && mine.some(p => {
+    if (p.type === 'AvionReconocimiento') return false;
+    if (p.type === 'AvionCombate' && (game.movementBudgetSpent > 0 || game.combatPlaneAttackUsedThisTurn)) return false;
+    const range = game.options.advancedActualRange ? getActualRange(p) : getNominalRange(p.type);
+    return seesEnemy(p, range);
+  });
+
+  const canRecon = !game.attackOrReconUsedThisTurn && mine.some(p =>
+    p.type === 'AvionReconocimiento' && seesEnemy(p, Infinity));
+
+  return { canMove, canAttack, canRecon, canAct: canMove || canAttack || canRecon };
 }

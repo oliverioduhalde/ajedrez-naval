@@ -19,9 +19,8 @@ interface Props {
 
 const GAP = 8;
 const EDGE = 2;
-const MENU_W = 200;
+const MENU_W = 214;
 const MIN_W = 150;
-const PICKING: ActionMode[] = ['attacking', 'reconning', 'placingMine', 'liftingMine'];
 
 type Side = 'right' | 'left' | 'below' | 'above';
 interface Placed { left: number; top: number; side: Side }
@@ -100,17 +99,26 @@ export const PieceActionMenu: React.FC<Props> = ({ piece, anchor, boardW, boardH
   const ref = useRef<HTMLDivElement>(null);
   const [placed, setPlaced] = useState<Placed | null>(null);
   const [bounds, setBounds] = useState<DisplayRect>({ left: 0, top: 0, width: boardW, height: boardH });
-  const [folded, setFolded] = useState(false);
+  /** Posición elegida a mano (arrastrando el título): el menú se queda ahí aunque la ficha se mueva. */
+  const [manual, setManual] = useState<{ left: number; top: number } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
 
   const tokenChosen = game.selectedNumberToken !== null;
   const actions = useMemo(() => getPieceActions(game, piece), [game, piece]);
   const activeMode: ActionMode = ui.mode === 'idle' ? 'moving' : ui.mode;
-  const picking = tokenChosen && PICKING.includes(activeMode);
-  const compact = picking || (tokenChosen && folded);
+  const activeAction = actions.find(a => a.mode === activeMode);
   const hint = tokenChosen
     ? modeHint(activeMode, { reachable: ui.highlightedCells.length, targets: ui.targetablePieceIds.length })
     : null;
-  const activeLabel = actions.find(a => a.mode === activeMode)?.label ?? '';
+  const detail = tokenChosen && activeMode !== 'moving' && activeAction ? activeAction.detail : null;
+
+  // Un aviso de "no se puede" dura unos segundos.
+  useEffect(() => {
+    if (!note) return;
+    const t = window.setTimeout(() => setNote(null), 3500);
+    return () => window.clearTimeout(t);
+  }, [note]);
 
   // Ancho: el de siempre, o el que sobra al costado de la ficha si es menor.
   const maxW = Math.max(120, Math.min(MENU_W, bounds.width - EDGE * 2));
@@ -132,7 +140,7 @@ export const PieceActionMenu: React.FC<Props> = ({ piece, anchor, boardW, boardH
 
   useLayoutEffect(measure, [
     anchor.left, anchor.top, anchor.width, boardW, boardH, avoidKey,
-    tokenChosen, activeMode, hint, width, compact, bounds.left, bounds.top, bounds.width, bounds.height,
+    tokenChosen, activeMode, hint, detail, note, width, bounds.left, bounds.top, bounds.width, bounds.height,
   ]);
 
   // Re-medir si cambia el tamaño del menú, se desplaza el tablero ampliado o cambia la ventana.
@@ -166,25 +174,45 @@ export const PieceActionMenu: React.FC<Props> = ({ piece, anchor, boardW, boardH
     if (useGameStore.getState().game.selectedNumberToken === t) selectPiece(id);
   };
 
+  const menuW = ref.current?.offsetWidth ?? width;
+  const menuH = ref.current?.offsetHeight ?? 0;
+  const pos: Placed | null = manual
+    ? {
+        side: 'right',
+        left: clamp(manual.left, bounds.left + EDGE, bounds.left + bounds.width - menuW - EDGE),
+        top: clamp(manual.top, bounds.top + EDGE, bounds.top + bounds.height - menuH - EDGE),
+      }
+    : placed;
+
+  const onDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button') || !pos) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, left: pos.left, top: pos.top };
+  };
+  const onDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    setManual({ left: d.left + e.clientX - d.x, top: d.top + e.clientY - d.y });
+  };
+  const onDragEnd = () => { drag.current = null; };
+
   const accent = 'var(--main)';
   const arrowSize = 10;
   const cy = anchor.top + anchor.height / 2;
   const cx = anchor.left + anchor.width / 2;
-  const arrow: React.CSSProperties | null = placed ? (() => {
+  const arrow: React.CSSProperties | null = pos && !manual ? (() => {
     const base: React.CSSProperties = {
       position: 'absolute', width: arrowSize, height: arrowSize, background: 'var(--bg)',
       transform: 'rotate(45deg)', pointerEvents: 'none',
     };
     const edge = `1px solid ${mix(accent, 55)}`;
-    const h = ref.current?.offsetHeight ?? 0;
-    const w = ref.current?.offsetWidth ?? width;
-    if (placed.side === 'right') return { ...base, left: -arrowSize / 2, top: clamp(cy - placed.top - arrowSize / 2, 8, h - 18), borderLeft: edge, borderBottom: edge };
-    if (placed.side === 'left') return { ...base, right: -arrowSize / 2, top: clamp(cy - placed.top - arrowSize / 2, 8, h - 18), borderRight: edge, borderTop: edge };
-    if (placed.side === 'below') return { ...base, top: -arrowSize / 2, left: clamp(cx - placed.left - arrowSize / 2, 8, w - 18), borderLeft: edge, borderTop: edge };
-    return { ...base, bottom: -arrowSize / 2, left: clamp(cx - placed.left - arrowSize / 2, 8, w - 18), borderRight: edge, borderBottom: edge };
+    if (pos.side === 'right') return { ...base, left: -arrowSize / 2, top: clamp(cy - pos.top - arrowSize / 2, 8, menuH - 18), borderLeft: edge, borderBottom: edge };
+    if (pos.side === 'left') return { ...base, right: -arrowSize / 2, top: clamp(cy - pos.top - arrowSize / 2, 8, menuH - 18), borderRight: edge, borderTop: edge };
+    if (pos.side === 'below') return { ...base, top: -arrowSize / 2, left: clamp(cx - pos.left - arrowSize / 2, 8, menuW - 18), borderLeft: edge, borderTop: edge };
+    return { ...base, bottom: -arrowSize / 2, left: clamp(cx - pos.left - arrowSize / 2, 8, menuW - 18), borderRight: edge, borderBottom: edge };
   })() : null;
 
-  const smallBtn: React.CSSProperties = {
+  const closeBtn: React.CSSProperties = {
     width: 24, height: 24, flexShrink: 0, borderRadius: 4, cursor: 'pointer',
     border: '1px solid var(--line)', background: 'transparent', color: 'var(--main-soft)',
     fontSize: 13, lineHeight: 1, padding: 0,
@@ -199,8 +227,8 @@ export const PieceActionMenu: React.FC<Props> = ({ piece, anchor, boardW, boardH
       onDoubleClick={e => e.stopPropagation()}
       style={{
         position: 'absolute', zIndex: 8,
-        left: placed?.left ?? 0, top: placed?.top ?? 0,
-        visibility: placed ? 'visible' : 'hidden',
+        left: pos?.left ?? 0, top: pos?.top ?? 0,
+        visibility: pos ? 'visible' : 'hidden',
         width,
         boxSizing: 'border-box',
         animation: 'popin 0.12s ease-out',
@@ -211,7 +239,7 @@ export const PieceActionMenu: React.FC<Props> = ({ piece, anchor, boardW, boardH
       {arrow && <div style={arrow} />}
       <div style={{
         position: 'relative',
-        maxHeight: Math.max(120, bounds.height - EDGE * 2),
+        maxHeight: Math.max(100, bounds.height - EDGE * 2),
         overflowY: 'auto',
         boxSizing: 'border-box',
         background: 'var(--bg)',
@@ -219,35 +247,33 @@ export const PieceActionMenu: React.FC<Props> = ({ piece, anchor, boardW, boardH
         border: `1px solid ${mix(accent, 55)}`,
         borderRadius: 8,
         boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
-        padding: 8,
+        padding: '6px 8px 8px',
         display: 'flex', flexDirection: 'column', gap: 6,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div
+          onPointerDown={onDragStart}
+          onPointerMove={onDragMove}
+          onPointerUp={onDragEnd}
+          onPointerCancel={onDragEnd}
+          onDoubleClick={e => { e.stopPropagation(); setManual(null); }}
+          title="Arrastrá para correr el menú; doble toque para volver junto a la ficha"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'grab', touchAction: 'none' }}
+        >
+          <span aria-hidden style={{ color: 'var(--main-mute)', fontSize: 13, letterSpacing: -2, lineHeight: 1 }}>⋮⋮</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, fontWeight: 800, color: accent, lineHeight: 1.2 }}>
-              {picking ? activeLabel : PIECE_NAMES[piece.type]}
-            </div>
-            <div style={{ fontSize: 10.5, color: piece.damaged ? 'var(--warn)' : 'var(--main-mute)', lineHeight: 1.2 }}>
-              {picking ? `${PIECE_NAMES[piece.type]} · ` : ''}
-              {piece.damaged ? 'Averiado' : 'Ileso'}
-              {tokenChosen && ` · ficha ${game.selectedNumberToken}`}
+              {PIECE_NAMES[piece.type]}
+              <span style={{ fontWeight: 600, fontSize: 10.5, color: piece.damaged ? 'var(--warn)' : 'var(--main-mute)' }}>
+                {piece.damaged ? ' · averiado' : ''}{tokenChosen ? ` · ficha ${game.selectedNumberToken}` : ''}
+              </span>
             </div>
           </div>
-          {tokenChosen && !picking && (
-            <button
-              type="button"
-              aria-label={folded ? 'Desplegar acciones' : 'Plegar acciones'}
-              title={folded ? 'Desplegar acciones' : 'Plegar para ver el tablero'}
-              onClick={() => setFolded(f => !f)}
-              style={smallBtn}
-            >{folded ? '▾' : '▴'}</button>
-          )}
           <button
             type="button"
             aria-label="Cerrar menú de la ficha"
             title="Cerrar"
             onClick={() => selectPiece(null)}
-            style={smallBtn}
+            style={closeBtn}
           >×</button>
         </div>
 
@@ -274,55 +300,38 @@ export const PieceActionMenu: React.FC<Props> = ({ piece, anchor, boardW, boardH
           </>
         ) : (
           <>
-            {!compact && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {actions.map(a => {
-                  const active = a.enabled && activeMode === a.mode;
-                  return (
-                    <button
-                      key={a.mode}
-                      type="button"
-                      className="menu-btn"
-                      disabled={!a.enabled}
-                      title={a.detail}
-                      onClick={() => setMode(a.mode)}
-                      style={{
-                        textAlign: 'left', padding: '5px 9px', borderRadius: 5,
-                        cursor: a.enabled ? 'pointer' : 'not-allowed',
-                        border: `1px solid ${active ? accent : mix(accent, 32)}`,
-                        background: active ? mix(accent, 24) : 'transparent',
-                        color: a.enabled ? accent : 'var(--main-mute)',
-                        opacity: a.enabled ? 1 : 0.55,
-                        display: 'flex', flexDirection: 'column', gap: 1,
-                        boxShadow: active ? `0 0 0 1px ${mix(accent, 40)}` : 'none',
-                      }}
-                    >
-                      <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>{a.label}</span>
-                      <span style={{ fontSize: 10.5, color: a.enabled ? 'var(--main-soft)' : 'var(--main-mute)', lineHeight: 1.25 }}>{a.detail}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {hint && (
-              <div style={{
-                fontSize: 11, lineHeight: 1.4, color: 'var(--text)',
-                borderTop: compact ? 'none' : '1px solid var(--line)', paddingTop: compact ? 0 : 6,
-              }}>
-                {hint}
-              </div>
-            )}
-            {picking && (
-              <button
-                type="button"
-                className="menu-btn"
-                onClick={() => setMode('moving')}
-                style={{
-                  height: 28, borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                  border: `1px solid ${mix(accent, 45)}`, background: 'transparent', color: accent,
-                }}
-              >← Volver a las acciones</button>
-            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {actions.map(a => {
+                const active = a.enabled && activeMode === a.mode;
+                return (
+                  <button
+                    key={a.mode}
+                    type="button"
+                    className="menu-btn"
+                    aria-disabled={!a.enabled}
+                    title={a.detail}
+                    onClick={() => (a.enabled ? setMode(a.mode) : setNote(`${a.label}: ${a.detail}.`))}
+                    style={{
+                      padding: '0 10px', height: 30, borderRadius: 5, fontSize: 12.5, fontWeight: 700,
+                      cursor: a.enabled ? 'pointer' : 'not-allowed',
+                      border: `1px solid ${active ? accent : mix(accent, 35)}`,
+                      background: active ? mix(accent, 26) : 'transparent',
+                      color: a.enabled ? accent : 'var(--main-mute)',
+                      opacity: a.enabled ? 1 : 0.5,
+                      boxShadow: active ? `0 0 0 1px ${mix(accent, 40)}` : 'none',
+                    }}
+                  >{a.label}</button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, lineHeight: 1.4, color: note ? 'var(--warn)' : 'var(--text)' }}>
+              {note ?? (
+                <>
+                  {detail && <span style={{ color: 'var(--main-soft)' }}>{detail} · </span>}
+                  {hint}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>

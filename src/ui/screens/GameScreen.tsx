@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { useCpuStatus } from '../../store/cpuStatus';
 import { useSettings } from '../../store/settingsStore';
@@ -9,6 +9,7 @@ import { SystemHeader } from '../components/SystemHeader';
 import { HamburgerMenu } from '../components/HamburgerMenu';
 import { ViewControls } from '../components/BoardViewport';
 import { PieceZoomModal } from '../components/PieceZoomModal';
+import { getTurnStatus } from '../pieceActions';
 import { useNarrowScreen, useShortScreen, useStackedLayout } from '../hooks/useStackedLayout';
 import { Btn, Card, Label, mix } from '../ui';
 
@@ -46,6 +47,11 @@ export const GameScreen: React.FC = () => {
     const t = window.setTimeout(clearError, 4000);
     return () => window.clearTimeout(t);
   }, [errorMessage, clearError]);
+
+  // Cuando no queda nada por hacer (mover, atacar o reconocer) se ofrece terminar el turno.
+  const turnStatus = useMemo(() => getTurnStatus(game), [game]);
+  const [endPromptDismissed, setEndPromptDismissed] = useState(false);
+  useEffect(() => { setEndPromptDismissed(false); }, [game.turn, game.selectedNumberToken]);
   const viewAs = vsCpu ? 'A' : game.turn;
   const locked = vsCpu && game.turn !== 'A';
 
@@ -88,6 +94,7 @@ export const GameScreen: React.FC = () => {
   const turnColor = game.turn === 'A' ? 'var(--main)' : 'var(--rv)';
   const budget = game.selectedNumberToken !== null ? game.selectedNumberToken - game.movementBudgetSpent : null;
   const canEndTurn = game.phase === 'play' && game.turn === viewAs && budget !== null;
+  const showEndPrompt = canEndTurn && !locked && !turnStatus.canAct && !endPromptDismissed;
 
   const expand = () => {
     if (stacked) setDrawerOpen(o => !o);
@@ -96,7 +103,7 @@ export const GameScreen: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', gap: 4, height: '100%', overflow: 'hidden', position: 'relative' }}>
-      <Board viewAs={viewAs} locked={locked} />
+      <Board viewAs={viewAs} locked={locked} hideMenu={showEndPrompt} />
       <PieceZoomModal viewAs={viewAs} />
 
       {errorMessage && (
@@ -109,11 +116,54 @@ export const GameScreen: React.FC = () => {
             border: '1px solid var(--danger)', background: 'var(--bg)',
             backgroundImage: `linear-gradient(${mix('var(--danger)', 14)}, ${mix('var(--danger)', 14)})`,
             borderRadius: 6, color: 'var(--danger)', padding: '8px 12px',
-            fontSize: 12.5, fontWeight: 600, lineHeight: 1.4, cursor: 'pointer',
+            fontSize: 12.5, fontWeight: 600, lineHeight: 1.4, cursor: 'pointer', pointerEvents: 'none',
             boxShadow: '0 6px 20px rgba(0,0,0,0.5)', animation: 'popin 0.12s ease-out',
           }}
         >
           {errorMessage}
+        </div>
+      )}
+
+      {showEndPrompt && (
+        <div
+          role="status"
+          style={{
+            position: 'absolute', zIndex: 55, margin: '0 auto', left: 0,
+            right: stacked ? 0 : showFull ? `calc(${RAIL_W} + 12px)` : STRIP_W + 8,
+            bottom: stacked ? STRIP_W + 12 : 12,
+            width: 'min(380px, calc(100% - 24px))', boxSizing: 'border-box',
+            display: 'flex', flexDirection: 'column', gap: 8,
+            padding: '8px 10px', borderRadius: 8,
+            border: '1px solid var(--main)', background: 'var(--bg)',
+            backgroundImage: `linear-gradient(${mix('var(--main)', 12)}, ${mix('var(--main)', 12)})`,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.55)', animation: 'popin 0.15s ease-out',
+          }}
+        >
+          <div style={{ lineHeight: 1.25 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--main)' }}>No te quedan acciones. </span>
+            <span style={{ fontSize: 11.5, color: 'var(--main-soft)' }}>No podés mover, atacar ni reconocer.</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={doEndTurn}
+              style={{
+                flex: 1, height: 36, borderRadius: 5, cursor: 'pointer', fontSize: 13.5, fontWeight: 800,
+                border: '1px solid var(--main)', background: mix('var(--main)', 28), color: 'var(--main)',
+              }}
+            >
+              Finalizar turno
+            </button>
+            <button
+              onClick={() => setEndPromptDismissed(true)}
+              title="Seguir jugando, por ejemplo con minas"
+              style={{
+                height: 36, padding: '0 14px', borderRadius: 5, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+                border: '1px solid var(--line)', background: 'transparent', color: 'var(--main-soft)',
+              }}
+            >
+              Seguir
+            </button>
+          </div>
         </div>
       )}
 

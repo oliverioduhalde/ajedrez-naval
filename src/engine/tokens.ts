@@ -1,14 +1,19 @@
 import type { Player } from './types';
 
 export const INITIAL_TOKENS: number[] = [2, 3, 4, 5, 6];
-export const FULL_TOKEN_COUNT = 6; // including the "1" start token
+export const FULL_TOKEN_COUNT = 6; // al iniciar el turno hay que tener 6 (incluye la ficha "1" del que empieza)
 
-// After setup the "1" token is awarded to the starting player; each player gets [2..6]
-export function initialTokens(): Record<Player, number[]> {
+/**
+ * Reglamento §2.2: serie del 2 al 6 por jugador, más una única ficha "1" que se sortea:
+ * quien la obtiene comienza. Así el que empieza tiene las 6 fichas (1..6) y el otro 5 (2..6);
+ * a partir de ahí cada ficha jugada se entrega al rival, y por eso aparecen números repetidos.
+ */
+export function initialTokens(starter: Player = 'A'): Record<Player, number[]> {
+  const other: Player = starter === 'A' ? 'B' : 'A';
   return {
-    A: [2, 3, 4, 5, 6],
-    B: [2, 3, 4, 5, 6],
-  };
+    [starter]: [1, 2, 3, 4, 5, 6],
+    [other]: [2, 3, 4, 5, 6],
+  } as Record<Player, number[]>;
 }
 
 /**

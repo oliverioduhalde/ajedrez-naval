@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSettings } from '../store/settingsStore';
 
-export type PaletteId = 'verde' | 'ambar' | 'cian' | 'azul' | 'violeta' | 'rojo' | 'blanco';
+export type PaletteId = 'verde' | 'ambar' | 'cian' | 'azul' | 'violeta' | 'rojo' | 'blanco' | 'mar';
 
 export interface PaletteDef {
   id: PaletteId;
@@ -27,6 +27,7 @@ export const PALETTES: PaletteDef[] = [
   { id: 'violeta', name: 'Violeta', hue: 272, sat: 80 },
   { id: 'rojo',    name: 'Rojo',    hue: 355, sat: 85 },
   { id: 'blanco',  name: 'Blanco',  hue: 150, sat: 0 },
+  { id: 'mar',     name: 'Azul mar', hue: 202, sat: 68 },
 ];
 
 export const AUTO_RIVAL: Record<PaletteId, PaletteId> = {
@@ -37,11 +38,21 @@ export const AUTO_RIVAL: Record<PaletteId, PaletteId> = {
   violeta: 'verde',
   rojo: 'cian',
   blanco: 'ambar',
+  mar: 'ambar',
 };
 
 export function resolveRival(main: PaletteId, rival: PaletteId | 'auto'): PaletteId {
   const r = rival === 'auto' ? AUTO_RIVAL[main] : rival;
   return r === main ? AUTO_RIVAL[main] : r;
+}
+
+/** Orden en que se busca otro color para el tablero si el elegido choca con el de una flota. */
+const BOARD_FALLBACK: PaletteId[] = ['mar', 'cian', 'violeta', 'azul', 'verde', 'ambar', 'rojo', 'blanco'];
+
+/** El tablero tiene un tercer color: nunca el de las fichas de ninguno de los dos jugadores. */
+export function resolveBoard(main: PaletteId, rival: PaletteId, board: PaletteId): PaletteId {
+  if (board !== main && board !== rival) return board;
+  return BOARD_FALLBACK.find(id => id !== main && id !== rival) ?? board;
 }
 
 const def = (id: PaletteId) => PALETTES.find(p => p.id === id)!;
@@ -82,6 +93,14 @@ export function useSideTones(): { A: Tones; B: Tones } {
   return useMemo(() => ({ A: tonesOf(main), B: tonesOf(resolveRival(main, rival)) }), [main, rival]);
 }
 
+/** Cambia cuando cambia cualquier color: sirve para repintar lo que lee las variables CSS (canvas). */
+export function useThemeKey(): string {
+  const main = useSettings(s => s.colorMain);
+  const rival = useSettings(s => s.colorRival);
+  const board = useSettings(s => s.colorBoard);
+  return `${main}|${rival}|${board}`;
+}
+
 function setSide(root: CSSStyleDeclaration, prefix: string, t: Tones) {
   root.setProperty(`--${prefix}`, t.main);
   root.setProperty(`--${prefix}-soft`, t.soft);
@@ -91,11 +110,16 @@ function setSide(root: CSSStyleDeclaration, prefix: string, t: Tones) {
   root.setProperty(`--${prefix}-rgb`, t.rgb);
 }
 
-export function applyTheme(main: PaletteId, rival: PaletteId | 'auto') {
+export function applyTheme(main: PaletteId, rival: PaletteId | 'auto', board: PaletteId) {
   const root = document.documentElement.style;
   const m = def(main);
+  const rv = resolveRival(main, rival);
+  const sea = resolveBoard(main, rv, board);
   setSide(root, 'main', tonesOf(main));
-  setSide(root, 'rv', tonesOf(resolveRival(main, rival)));
+  setSide(root, 'rv', tonesOf(rv));
+  setSide(root, 'sea', tonesOf(sea));
+  const seaDef = def(sea);
+  root.setProperty('--sea-bg-rgb', rgbOf({ ...seaDef, sat: seaDef.sat * 0.85 }, 12));
   root.setProperty('--bg', hsl(m, 0.35, 3.5));
   root.setProperty('--panel', hsl(m, 0.4, 6.5));
   root.setProperty('--panel-2', hsl(m, 0.4, 9.5));
@@ -108,12 +132,12 @@ export function applyTheme(main: PaletteId, rival: PaletteId | 'auto') {
 export function initTheme() {
   const sync = () => {
     const s = useSettings.getState();
-    applyTheme(s.colorMain, s.colorRival);
+    applyTheme(s.colorMain, s.colorRival, s.colorBoard);
   };
   sync();
   let last = '';
   useSettings.subscribe(s => {
-    const key = s.colorMain + '|' + s.colorRival;
+    const key = s.colorMain + '|' + s.colorRival + '|' + s.colorBoard;
     if (key !== last) {
       last = key;
       sync();

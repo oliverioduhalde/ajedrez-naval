@@ -24,9 +24,9 @@ function cellBg(kind: string, highlighted: boolean, targetable: boolean): string
   if (highlighted)  return mix('var(--main)', 20);
   if (targetable)   return mix('var(--danger)', 20);
   switch (kind) {
-    case 'island':   return mix('var(--main)', 14);
-    case 'workshop': return mix('var(--main)', 22);
-    case 'bay':      return mix('var(--main)', 10);
+    case 'island':   return mix('var(--sea)', 18);
+    case 'workshop': return mix('var(--sea)', 26);
+    case 'bay':      return mix('var(--sea)', 12);
     case 'arrivalA': return mix('var(--main)', 9);
     case 'arrivalB': return mix('var(--rv)', 9);
     default:         return 'transparent';
@@ -37,12 +37,12 @@ function cellBorder(kind: string, highlighted: boolean, targetable: boolean): st
   if (highlighted) return mix('var(--main)', 55);
   if (targetable)  return mix('var(--danger)', 55);
   switch (kind) {
-    case 'island':   return mix('var(--main)', 30);
-    case 'workshop': return mix('var(--main)', 40);
-    case 'bay':      return mix('var(--main)', 20);
+    case 'island':   return mix('var(--sea)', 38);
+    case 'workshop': return mix('var(--sea)', 46);
+    case 'bay':      return mix('var(--sea)', 26);
     case 'arrivalA': return mix('var(--main)', 25);
     case 'arrivalB': return mix('var(--rv)', 30);
-    default:         return mix('var(--main)', 9);
+    default:         return mix('var(--sea)', 20);
   }
 }
 
@@ -57,7 +57,7 @@ function stripeStyle(side: Side, color: string): React.CSSProperties {
 function columnLabelStyle(rot: Rot, cellSize: number, dc: number, dr: number, row: number, col: number): React.CSSProperties {
   const side = mapSide(rot, 'top');
   const common: React.CSSProperties = {
-    position: 'absolute', fontSize: 9, color: mix('var(--main)', 45),
+    position: 'absolute', fontSize: 9, color: mix('var(--sea)', 55),
     pointerEvents: 'none', letterSpacing: 0, zIndex: 2, lineHeight: 1,
   };
   if (side === 'top')    return { ...common, left: (col - 1) * cellSize + 2, top: 1 };
@@ -66,9 +66,9 @@ function columnLabelStyle(rot: Rot, cellSize: number, dc: number, dr: number, ro
   return { ...common, left: dc * cellSize - 12, top: (row - 1) * cellSize + 1 };
 }
 
-interface Props { viewAs: Player; locked?: boolean }
+interface Props { viewAs: Player; locked?: boolean; hideMenu?: boolean }
 
-export const Board: React.FC<Props> = ({ viewAs, locked }) => {
+export const Board: React.FC<Props> = ({ viewAs, locked, hideMenu }) => {
   const { game, ui, selectPiece, inspect, openPieceZoom, setMode, doMove, doAttack, doRecon, doPlaceMine, doLiftMine } = useGameStore();
   const tones = useSideTones();
   const showRanges = useSettings(s => s.showRanges);
@@ -196,7 +196,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
         return (
           <div style={{
             position: 'absolute', inset: 0,
-            border: `1px solid ${mix('var(--main)', 35)}`,
+            border: `1px solid ${mix('var(--sea)', 45)}`,
             cursor: locked ? 'wait' : undefined,
           }}>
             <RadarCanvas width={boardW} height={boardH} />
@@ -234,7 +234,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                   borderRight: `1px solid ${bdr}`,
                   borderBottom: `1px solid ${bdr}`,
                 };
-                if (c === 12) border[sideBorder(foldSide)] = `1px solid ${mix('var(--main)', 35)}`;
+                if (c === 12) border[sideBorder(foldSide)] = `1px solid ${mix('var(--sea)', 45)}`;
 
                 return (
                   <div
@@ -253,7 +253,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                     {kind === 'island' && (
                       <div style={{
                         position: 'absolute', inset: 0,
-                        background: `repeating-linear-gradient(45deg, ${mix('var(--main)', 22)} 0, ${mix('var(--main)', 22)} 2px, transparent 2px, transparent 6px)`,
+                        background: `repeating-linear-gradient(45deg, ${mix('var(--sea)', 30)} 0, ${mix('var(--sea)', 30)} 2px, transparent 2px, transparent 6px)`,
                         pointerEvents: 'none',
                       }} />
                     )}
@@ -261,7 +261,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                     {kind === 'workshop' && cellSize > 22 && (
                       <div style={{
                         position: 'absolute', bottom: 1, left: 2,
-                        fontSize: 9, color: mix('var(--main)', 80),
+                        fontSize: 9, color: mix('var(--sea)', 85),
                         pointerEvents: 'none', lineHeight: 1,
                       }}>⚙</div>
                     )}
@@ -332,7 +332,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
             </div>
 
             {(() => {
-              if (locked || game.phase !== 'play' || ui.zoomPieceId) return null;
+              if (locked || hideMenu || game.phase !== 'play' || ui.zoomPieceId) return null;
               const sel = ui.selectedPieceId ? game.pieces.find(p => p.id === ui.selectedPieceId) : undefined;
               if (!sel || !sel.pos || sel.owner !== game.turn || sel.owner !== viewAs) return null;
 
@@ -365,7 +365,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                 ...(foldVertical
                   ? { left: 12 * cellSize - 1, top: 0, bottom: 0, width: 1 }
                   : { top: 12 * cellSize - 1, left: 0, right: 0, height: 1 }),
-                background: mix('var(--main)', 30),
+                background: mix('var(--sea)', 40),
                 pointerEvents: 'none',
                 zIndex: 3,
               }} />
