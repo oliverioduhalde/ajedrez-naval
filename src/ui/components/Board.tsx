@@ -6,7 +6,6 @@ import { useSettings } from '../../store/settingsStore';
 import { getReachableCells } from '../../engine/movement';
 import { getTargetableCells } from '../../engine/lineOfSight';
 import { getActualRange, getNominalRange } from '../../engine/pieces';
-import { PieceToken } from './PieceToken';
 import { PieceActionMenu, type DisplayRect } from './PieceActionMenu';
 import { RadarCanvas } from './RadarCanvas';
 import { BoardViewport } from './BoardViewport';
@@ -15,6 +14,9 @@ import { boardConfig } from '../../config/boardConfig';
 import { mix } from '../ui';
 import { useSideTones } from '../theme';
 import { displayDims, mapCell, mapRect, mapSide, sideBorder, type Rot, type Side } from '../boardRotation';
+import { CellPiece } from '../fx/CellPiece';
+import { FxLayer } from '../fx/FxLayer';
+import { ShakeFrame } from '../fx/ShakeFrame';
 
 const DOUBLE_CLICK_MS = 350;
 const COLS = boardConfig.cols;
@@ -194,7 +196,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked, hideMenu }) => {
         const foldVertical = rot === 0 || rot === 180;
 
         return (
-          <div style={{
+          <ShakeFrame style={{
             position: 'absolute', inset: 0,
             border: `1px solid ${mix('var(--sea)', 45)}`,
             cursor: locked ? 'wait' : undefined,
@@ -316,20 +318,20 @@ export const Board: React.FC<Props> = ({ viewAs, locked, hideMenu }) => {
                     )}
 
                     {piece && (
-                      <div style={{ position: 'absolute', inset: 2 }}>
-                        <PieceToken
-                          piece={piece} viewAs={viewAs}
-                          selected={piece.id === ui.selectedPieceId || piece.id === ui.inspectId}
-                          enlarge={pieceZoomOn}
-                          targetable={targetSet.has(piece.id)}
-                          cellSize={cellSize - 4}
-                        />
-                      </div>
+                      <CellPiece
+                        piece={piece} viewAs={viewAs}
+                        selected={piece.id === ui.selectedPieceId || piece.id === ui.inspectId}
+                        enlarge={pieceZoomOn}
+                        targetable={targetSet.has(piece.id)}
+                        cellSize={cellSize - 4}
+                      />
                     )}
                   </div>
                 );
               })}
             </div>
+
+            <FxLayer cellSize={cellSize} rot={rot} />
 
             {(() => {
               if (locked || hideMenu || game.phase !== 'play' || ui.zoomPieceId) return null;
@@ -370,7 +372,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked, hideMenu }) => {
                 zIndex: 3,
               }} />
             )}
-          </div>
+          </ShakeFrame>
         );
       }}
     </BoardViewport>

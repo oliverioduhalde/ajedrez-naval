@@ -25,6 +25,11 @@ export interface Settings {
   showRanges: boolean;
   vsCpu: boolean;
   cpuLevel: CpuLevel;
+  /** Sonidos de la partida (sintetizados). */
+  soundOn: boolean;
+  soundVolume: number;
+  /** Animaciones de disparos, explosiones y llamas. */
+  fxOn: boolean;
 }
 
 interface SettingsStore extends Settings {
@@ -58,6 +63,9 @@ const DEFAULTS: Settings = {
   showRanges: true,
   vsCpu: false,
   cpuLevel: 2,
+  soundOn: true,
+  soundVolume: 0.8,
+  fxOn: true,
 };
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -76,6 +84,7 @@ function load(): Settings {
     if (!PALETTE_IDS.includes(merged.colorMain)) merged.colorMain = 'verde';
     if (merged.colorRival !== 'auto' && !PALETTE_IDS.includes(merged.colorRival)) merged.colorRival = 'auto';
     if (!PALETTE_IDS.includes(merged.colorBoard)) merged.colorBoard = 'mar';
+    merged.soundVolume = clamp(Number(p.soundVolume ?? 0.8), 0, 1);
     if (!CPU_AVAILABLE) merged.vsCpu = false;
     return merged;
   } catch {

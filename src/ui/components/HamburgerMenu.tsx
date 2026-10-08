@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { CPU_AVAILABLE, useSettings, ZOOM_MAX, ZOOM_MIN } from '../../store/settingsStore';
 import { CPU_LEVELS } from '../../ai/types';
+import { SOUND_LIST, playSound, setAudioEnabled, setMasterVolume, unlockAudio, type SoundInfo } from '../../fx/audio';
+import type { SoundId } from '../../fx/types';
 import { PALETTES, paletteSwatch, resolveBoard, resolveRival, type PaletteId } from '../theme';
 import { mix } from '../ui';
 
@@ -14,6 +16,7 @@ const Toggle: React.FC<{
       <button
         onClick={() => onChange(!value)}
         aria-pressed={value}
+        aria-label={label}
         style={{
           width: 44, height: 24, minWidth: 44, minHeight: 24, borderRadius: 12, cursor: 'pointer', position: 'relative',
           border: `1px solid ${value ? 'var(--main)' : 'var(--line)'}`,
@@ -50,7 +53,7 @@ const Slider: React.FC<{
       <span style={{ color: 'var(--main)' }}>{format(value)}</span>
     </div>
     <input
-      type="range" min={min} max={max} step={step} value={value} disabled={disabled}
+      type="range" min={min} max={max} step={step} value={value} disabled={disabled} aria-label={label}
       onChange={e => onChange(Number(e.target.value))}
       style={{ width: '100%', marginTop: 6, cursor: disabled ? 'not-allowed' : 'pointer' }}
     />
@@ -89,6 +92,127 @@ const MiniBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onCl
     {label}
   </button>
 );
+
+const SoundIcon: React.FC<{ muted: boolean }> = ({ muted }) => (
+  <svg
+    width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+  >
+    <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" fillOpacity="0.22" />
+    {muted ? (
+      <>
+        <path d="M16 9.5l5 5" />
+        <path d="M21 9.5l-5 5" />
+      </>
+    ) : (
+      <>
+        <path d="M15.5 9.2a4 4 0 0 1 0 5.6" />
+        <path d="M18.4 6.6a8 8 0 0 1 0 10.8" />
+      </>
+    )}
+  </svg>
+);
+
+/** Botón rápido de silencio: alterna el sonido sin abrir el menú. */
+export const MuteButton: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
+  const soundOn = useSettings(s => s.soundOn);
+  const set = useSettings(s => s.set);
+  return (
+    <button
+      onClick={() => { if (!soundOn) unlockAudio(); set({ soundOn: !soundOn }); }}
+      title={soundOn ? 'Silenciar' : 'Activar sonido'}
+      aria-label="Silenciar"
+      aria-pressed={!soundOn}
+      style={{
+        width: 36, height: 36, flexShrink: 0, padding: 0, borderRadius: 4, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: '1px solid var(--line)', background: 'transparent',
+        color: soundOn ? 'var(--main)' : 'var(--main-mute)',
+        ...style,
+      }}
+    >
+      <SoundIcon muted={!soundOn} />
+    </button>
+  );
+};
+
+/** Bloque plegable para oír cada sonido suelto. No se muestra si el motor de audio no expone sonidos. */
+const SoundTest: React.FC<{ enabled: boolean; volume: number }> = ({ enabled, volume }) => {
+  const [open, setOpen] = useState(false);
+  const [last, setLast] = useState<SoundInfo | null>(null);
+  const [playing, setPlaying] = useState<SoundId | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  if (SOUND_LIST.length === 0) return null;
+
+  function play(info: SoundInfo) {
+    unlockAudio();
+    // El motor se sincroniza con los ajustes recién con la primera acción de la partida: acá se fuerza.
+    setAudioEnabled(true);
+    setMasterVolume(volume);
+    playSound(info.id, { dur: info.defaultDur });
+    setLast(info);
+    setPlaying(info.id);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setPlaying(null), info.defaultDur * 1000);
+  }
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-controls="sound-test-panel"
+        style={{
+          width: '100%', padding: '8px 10px', borderRadius: 4, cursor: 'pointer',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          border: '1px solid var(--line)', background: open ? mix('var(--main)', 8) : 'transparent',
+          color: 'var(--main-soft)', fontSize: 13, fontWeight: 600,
+        }}
+      >
+        <span>Probar sonidos</span>
+        <span aria-hidden="true" style={{ fontSize: 11 }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div id="sound-test-panel" style={{ marginTop: 8 }}>
+          {!enabled && (
+            <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 8, lineHeight: 1.4 }}>
+              Activá el sonido para probar.
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {SOUND_LIST.map(info => {
+              const on = playing === info.id;
+              return (
+                <button
+                  key={info.id}
+                  onClick={() => play(info)}
+                  disabled={!enabled}
+                  title={info.blurb}
+                  style={{
+                    padding: '8px 6px', borderRadius: 4, fontSize: 12, fontWeight: 600, lineHeight: 1.25,
+                    cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.4,
+                    border: `1px solid ${on ? 'var(--main)' : 'var(--line)'}`,
+                    background: on ? mix('var(--main)', 20) : 'transparent',
+                    color: on ? 'var(--main)' : 'var(--main-soft)',
+                  }}
+                >
+                  {info.label}
+                </button>
+              );
+            })}
+          </div>
+          {last && (
+            <div style={{ fontSize: 12, color: 'var(--main-mute)', marginTop: 8, lineHeight: 1.4 }}>
+              <span style={{ color: 'var(--main-soft)' }}>{last.label}:</span> {last.blurb}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Swatches: React.FC<{
   value: string; onPick: (id: PaletteId) => void; disabledIds?: PaletteId[]; extra?: React.ReactNode;
@@ -266,6 +390,16 @@ export const HamburgerMenu: React.FC = () => {
           format={v => v + ' px'} onChange={v => st.set({ pieceZoomSize: v })} />
         <Toggle label="Mostrar alcances al tocar" value={st.showRanges} onChange={v => st.set({ showRanges: v })}
           desc="Un clic en una ficha marca su alcance de movimiento y de tiro." />
+
+        <Section>Sonido y efectos</Section>
+        <Toggle label="Sonido" value={st.soundOn}
+          onChange={v => { if (v) unlockAudio(); st.set({ soundOn: v }); }}
+          desc="Motores, sonar, cañonazos, torpedos y explosiones, generados en el momento." />
+        <Slider label="Volumen" value={st.soundVolume} min={0} max={1} step={0.05} disabled={!st.soundOn}
+          format={v => Math.round(v * 100) + '%'} onChange={v => st.set({ soundVolume: v })} />
+        <Toggle label="Animaciones de combate" value={st.fxOn} onChange={v => st.set({ fxOn: v })}
+          desc="Disparos, explosiones, splash y llamas en los barcos averiados." />
+        <SoundTest enabled={st.soundOn} volume={st.soundVolume} />
 
         <Section>Efectos de pantalla (opcionales)</Section>
         <Toggle label="Efecto CRT" value={st.crtOn} onChange={v => st.set({ crtOn: v })} desc="Líneas de barrido y viñeta, como un monitor antiguo." />

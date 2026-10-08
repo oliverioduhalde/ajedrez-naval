@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState } from '../engine/types';
+import type { GameState, Player } from '../engine/types';
 import {
   createInitialState,
   placePieceInSetup,
@@ -19,7 +19,10 @@ import { findPath, getReachableCells } from '../engine/movement';
 import { randomDeployment, taskForceDeployment } from '../engine/deployment';
 import { getTargetableCells } from '../engine/lineOfSight';
 import { getActualRange, getNominalRange } from '../engine/pieces';
+import { resolveCombat } from '../engine/combat';
 import { esError } from '../ui/messages';
+import { useSettings } from './settingsStore';
+import { emitFx } from '../fx/emit';
 
 interface UIState {
   selectedPieceId: string | null;
@@ -69,6 +72,11 @@ const initUI = (): UIState => ({
   errorMessage: null,
   mode: 'idle',
 });
+
+/** Quién mira la pantalla: contra la CPU siempre A; en mesa compartida, quien tiene el turno. */
+function spectator(game: GameState): Player {
+  return useSettings.getState().vsCpu ? 'A' : game.turn;
+}
 
 function applyOrError(
   result: GameState | string,
@@ -197,14 +205,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     let state = game;
+    let applied = 0;
     for (const step of steps) {
       const result = movePiece(state, pieceId, step);
       if (typeof result === 'string') { applyOrError(result, set); return; }
       state = result;
+      applied += 1;
       if (state.phase !== 'play') break;
       if (!state.pieces.find(p => p.id === pieceId)?.pos) break;
     }
     applyOrError(state, set);
+    if (piece && piece.pos && state !== game) {
+      const after = state.pieces.find(p => p.id === pieceId);
+      const taken = steps.slice(0, applied);
+      const blasted = !after?.pos;
+      emitFx({
+        kind: 'move', pieceId, unit: piece.type, owner: piece.owner, from: piece.pos, path: taken,
+        audible: canSeeIdentity(piece, spectator(game)), endsInBlast: blasted,
+      });
+      if (blasted) {
+        emitFx({
+          kind: 'mineBlast', pieceId, unit: piece.type, owner: piece.owner,
+          at: taken[taken.length - 1], damaged: piece.damaged,
+        });
+      }
+    }
     if (get().game.phase === 'play') {
       const moved = get().game.pieces.find(p => p.id === pieceId);
       if (moved?.pos) get().selectPiece(pieceId);
@@ -216,6 +241,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!ui.selectedPieceId) return;
     const result = attackPiece(game, ui.selectedPieceId, targetId);
     applyOrError(result, set);
+    if (typeof result !== 'string') {
+      const attacker = game.pieces.find(p => p.id === ui.selectedPieceId);
+      const target = game.pieces.find(p => p.id === targetId);
+      if (attacker?.pos && target?.pos) {
+        const distance = Math.abs(attacker.pos.r - target.pos.r) + Math.abs(attacker.pos.c - target.pos.c);
+        emitFx({
+          kind: 'attack',
+          attackerId: attacker.id, attackerUnit: attacker.type, attackerOwner: attacker.owner, from: attacker.pos,
+          targetId: target.id, targetUnit: target.type, targetOwner: target.owner, to: target.pos,
+          distance,
+          result: resolveCombat(attacker, target, distance, game.options.advancedActualRange),
+          targetWasDamaged: target.damaged,
+        });
+      }
+    }
   },
 
   doRecon(targetId) {

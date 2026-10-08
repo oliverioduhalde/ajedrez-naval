@@ -6,7 +6,7 @@ import { Board } from '../components/Board';
 import { ActionPanel } from '../components/ActionPanel';
 import { GameLog } from '../components/GameLog';
 import { SystemHeader } from '../components/SystemHeader';
-import { HamburgerMenu } from '../components/HamburgerMenu';
+import { HamburgerMenu, MuteButton } from '../components/HamburgerMenu';
 import { ViewControls } from '../components/BoardViewport';
 import { PieceZoomModal } from '../components/PieceZoomModal';
 import { getTurnStatus } from '../pieceActions';
@@ -22,7 +22,10 @@ const RailContent: React.FC<{ viewAs: 'A' | 'B'; onHide: () => void; hideLabel: 
     <Card style={{ padding: '8px 10px', flexShrink: 0 }}>
       <Label>Vista del tablero</Label>
       <div style={{ marginTop: 6 }}><ViewControls /></div>
-      <Btn onClick={onHide} style={{ marginTop: 6, textAlign: 'center', fontSize: 11 }}>{hideLabel}</Btn>
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <Btn onClick={onHide} style={{ textAlign: 'center', fontSize: 11 }}>{hideLabel}</Btn>
+        <MuteButton />
+      </div>
     </Card>
     <ActionPanel viewAs={viewAs} />
     <GameLog fill />
@@ -176,12 +179,13 @@ export const GameScreen: React.FC = () => {
         </aside>
       ) : (
         <aside style={{
-          display: 'flex', flexDirection: stacked ? 'row' : 'column', alignItems: 'center', gap: stacked ? 6 : 8,
+          display: 'flex', flexDirection: stacked ? 'row' : 'column', alignItems: 'center', gap: stacked ? (narrow ? 4 : 6) : 8,
           ...(stacked ? { height: STRIP_W, padding: '0 6px', overflowX: 'auto' } : { width: STRIP_W, padding: '6px 0', overflowY: 'auto' }),
           flexShrink: 0,
           background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 6,
         }}>
           <HamburgerMenu />
+          <MuteButton />
           <button
             onClick={expand}
             title={stacked ? 'Abrir panel de juego' : 'Mostrar panel'}

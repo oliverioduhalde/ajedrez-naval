@@ -6,6 +6,7 @@ import { canBeDamaged, canPassMines, getActualRange, getNominalRange, pieceLabel
 import { getUnitIcon } from './PieceIcons';
 import { PIECE_NAMES, PIECE_ROLE } from '../messages';
 import { useSideTones } from '../theme';
+import { DamagedFlames } from '../fx/DamagedFlames';
 import { mix } from '../ui';
 
 const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -57,22 +58,25 @@ export const PieceZoomModal: React.FC<{ viewAs: Player }> = ({ viewAs }) => {
         background: 'var(--panel)', border: `1px solid ${mix(ownerVar, 55)}`, borderRadius: 10,
         padding: 18, animation: 'popin 0.18s ease-out', textAlign: 'center',
       }}>
-        <div style={{
-          width: size, height: size, maxWidth: '100%', aspectRatio: '1 / 1', margin: '0 auto 12px',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-          borderRadius: 12, background: mix(ownerVar, 14), border: `2px solid ${piece.damaged ? 'var(--warn)' : ownerVar}`,
-          transform: piece.damaged ? 'rotate(90deg)' : 'none',
-        }}>
-          {visible ? (
-            <>
-              {getUnitIcon(piece.type, Math.floor(size * 0.55), iconColor)}
-              <span style={{ fontSize: Math.max(14, Math.floor(size * 0.12)), fontWeight: 800, color: piece.damaged ? 'var(--warn)' : ownerVar }}>
-                {pieceLabel(piece.type)}
-              </span>
-            </>
-          ) : (
-            <span style={{ fontSize: Math.floor(size * 0.5), fontWeight: 800, color: mix(ownerVar, 65) }}>?</span>
-          )}
+        <div style={{ position: 'relative', width: size, maxWidth: '100%', margin: '0 auto 12px' }}>
+          <div style={{
+            width: '100%', height: size, aspectRatio: '1 / 1',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+            borderRadius: 12, background: mix(ownerVar, 14), border: `2px solid ${piece.damaged ? 'var(--warn)' : ownerVar}`,
+            transform: piece.damaged ? 'rotate(90deg)' : 'none',
+          }}>
+            {visible ? (
+              <>
+                {getUnitIcon(piece.type, Math.floor(size * 0.55), iconColor)}
+                <span style={{ fontSize: Math.max(14, Math.floor(size * 0.12)), fontWeight: 800, color: piece.damaged ? 'var(--warn)' : ownerVar }}>
+                  {pieceLabel(piece.type)}
+                </span>
+              </>
+            ) : (
+              <span style={{ fontSize: Math.floor(size * 0.5), fontWeight: 800, color: mix(ownerVar, 65) }}>?</span>
+            )}
+          </div>
+          {visible && piece.damaged && <DamagedFlames cellSize={size} seed={piece.id} contained />}
         </div>
 
         <div style={{ fontSize: 20, fontWeight: 800, color: ownerVar }}>
