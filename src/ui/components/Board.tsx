@@ -1,40 +1,46 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import type { Player } from '../../engine/types';
 import { getCellKind } from '../../engine/board';
-import { useGameStore } from '../../store/gameStore';
+import { useGameStore, canSeeIdentity } from '../../store/gameStore';
+import { useSettings } from '../../store/settingsStore';
+import { getReachableCells } from '../../engine/movement';
+import { getTargetableCells } from '../../engine/lineOfSight';
+import { getActualRange, getNominalRange } from '../../engine/pieces';
 import { PieceToken } from './PieceToken';
 import { RadarCanvas } from './RadarCanvas';
 import { BoardViewport } from './BoardViewport';
 import { IconMine } from './PieceIcons';
 import { boardConfig } from '../../config/boardConfig';
+import { mix } from '../ui';
+import { useSideTones } from '../theme';
 import { displayDims, mapCell, mapRect, mapSide, sideBorder, type Rot, type Side } from '../boardRotation';
 
 const COLS = boardConfig.cols;
 const ROWS = boardConfig.rows;
 
 function cellBg(kind: string, highlighted: boolean, targetable: boolean): string {
-  if (highlighted)  return 'rgba(0,255,100,0.18)';
-  if (targetable)   return 'rgba(255,30,0,0.18)';
+  if (highlighted)  return mix('var(--main)', 20);
+  if (targetable)   return mix('var(--danger)', 20);
   switch (kind) {
-    case 'island':   return 'rgba(0,60,10,0.95)';
-    case 'workshop': return 'rgba(0,80,20,0.85)';
-    case 'bay':      return 'rgba(0,60,25,0.7)';
-    case 'arrivalA': return 'rgba(0,40,12,0.7)';
-    case 'arrivalB': return 'rgba(30,10,0,0.7)';
+    case 'island':   return mix('var(--main)', 14);
+    case 'workshop': return mix('var(--main)', 22);
+    case 'bay':      return mix('var(--main)', 10);
+    case 'arrivalA': return mix('var(--main)', 9);
+    case 'arrivalB': return mix('var(--rv)', 9);
     default:         return 'transparent';
   }
 }
 
 function cellBorder(kind: string, highlighted: boolean, targetable: boolean): string {
-  if (highlighted) return 'rgba(0,255,100,0.5)';
-  if (targetable)  return 'rgba(255,50,0,0.5)';
+  if (highlighted) return mix('var(--main)', 55);
+  if (targetable)  return mix('var(--danger)', 55);
   switch (kind) {
-    case 'island':   return 'rgba(0,150,50,0.4)';
-    case 'workshop': return 'rgba(0,255,80,0.35)';
-    case 'bay':      return 'rgba(0,200,60,0.2)';
-    case 'arrivalA': return 'rgba(0,255,80,0.25)';
-    case 'arrivalB': return 'rgba(200,100,0,0.3)';
-    default:         return 'rgba(0,200,80,0.06)';
+    case 'island':   return mix('var(--main)', 30);
+    case 'workshop': return mix('var(--main)', 40);
+    case 'bay':      return mix('var(--main)', 20);
+    case 'arrivalA': return mix('var(--main)', 25);
+    case 'arrivalB': return mix('var(--rv)', 30);
+    default:         return mix('var(--main)', 9);
   }
 }
 
@@ -49,19 +55,23 @@ function stripeStyle(side: Side, color: string): React.CSSProperties {
 function columnLabelStyle(rot: Rot, cellSize: number, dc: number, dr: number, row: number, col: number): React.CSSProperties {
   const side = mapSide(rot, 'top');
   const common: React.CSSProperties = {
-    position: 'absolute', fontSize: 7, color: 'rgba(0,255,80,0.25)',
-    pointerEvents: 'none', letterSpacing: 0,
+    position: 'absolute', fontSize: 9, color: mix('var(--main)', 45),
+    pointerEvents: 'none', letterSpacing: 0, zIndex: 2, lineHeight: 1,
   };
-  if (side === 'top')    return { ...common, left: (col - 1) * cellSize, top: -14, width: cellSize, textAlign: 'center' };
-  if (side === 'bottom') return { ...common, left: (col - 1) * cellSize, top: dr * cellSize + 3, width: cellSize, textAlign: 'center' };
-  if (side === 'left')   return { ...common, left: -14, top: (row - 1) * cellSize, height: cellSize, lineHeight: `${cellSize}px`, width: 12, textAlign: 'right' };
-  return { ...common, left: dc * cellSize + 3, top: (row - 1) * cellSize, height: cellSize, lineHeight: `${cellSize}px`, width: 12 };
+  if (side === 'top')    return { ...common, left: (col - 1) * cellSize + 2, top: 1 };
+  if (side === 'bottom') return { ...common, left: (col - 1) * cellSize + 2, top: dr * cellSize - 11 };
+  if (side === 'left')   return { ...common, left: 2, top: (row - 1) * cellSize + 1 };
+  return { ...common, left: dc * cellSize - 12, top: (row - 1) * cellSize + 1 };
 }
 
 interface Props { viewAs: Player; locked?: boolean }
 
 export const Board: React.FC<Props> = ({ viewAs, locked }) => {
-  const { game, ui, selectPiece, doMove, doAttack, doRecon, doPlaceMine, doLiftMine } = useGameStore();
+  const { game, ui, selectPiece, inspect, openPieceZoom, doMove, doAttack, doRecon, doPlaceMine, doLiftMine } = useGameStore();
+  const tones = useSideTones();
+  const showRanges = useSettings(s => s.showRanges);
+  const pieceZoomOn = useSettings(s => s.pieceZoomOn);
+  const lastClick = useRef<{ id: string; t: number } | null>(null);
 
   const highlightSet = useMemo(
     () => new Set(ui.highlightedCells.map(c => `${c.r},${c.c}`)),
@@ -75,17 +85,58 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
   }, [game.pieces]);
   const targetSet = useMemo(() => new Set(ui.targetablePieceIds), [ui.targetablePieceIds]);
 
+  const ranges = useMemo(() => {
+    const empty = { move: new Set<string>(), fire: new Set<string>() };
+    if (!showRanges || !ui.inspectId) return empty;
+    const piece = game.pieces.find(p => p.id === ui.inspectId);
+    if (!piece || !piece.pos || !canSeeIdentity(piece, viewAs)) return empty;
+
+    const ownerTokens = game.numberTokens[piece.owner];
+    const budget = piece.owner === game.turn && game.selectedNumberToken !== null
+      ? game.selectedNumberToken - game.movementBudgetSpent
+      : ownerTokens.length ? Math.max(...ownerTokens) : 0;
+    const move = new Set(getReachableCells(piece, budget, game.pieces, game.mines).map(c => `${c.r},${c.c}`));
+
+    const range = game.options.advancedActualRange ? getActualRange(piece) : getNominalRange(piece.type);
+    const fire = new Set(getTargetableCells(piece.pos.r, piece.pos.c, range, game.pieces, game.mines).map(c => `${c.r},${c.c}`));
+    return { move, fire };
+  }, [showRanges, ui.inspectId, game.pieces, game.mines, game.turn, game.selectedNumberToken, game.movementBudgetSpent, game.numberTokens, game.options.advancedActualRange, viewAs]);
+
   function handleCellClick(r: number, c: number) {
-    if (locked) return;
     const piece = pieceMap.get(`${r},${c}`);
+
+    if (piece && pieceZoomOn) {
+      const now = performance.now();
+      const last = lastClick.current;
+      if (last && last.id === piece.id && now - last.t < 350) {
+        lastClick.current = null;
+        openPieceZoom(piece.id);
+        return;
+      }
+      lastClick.current = { id: piece.id, t: now };
+    } else {
+      lastClick.current = null;
+    }
+
+    if (locked) {
+      inspect(piece ? piece.id : null);
+      return;
+    }
+
     if (ui.mode === 'moving' || ui.mode === 'idle') {
       if (piece?.owner === game.turn) { selectPiece(piece.id); return; }
       if (ui.selectedPieceId && highlightSet.has(`${r},${c}`)) { doMove({ r, c }); return; }
+      if (piece) { inspect(piece.id); return; }
       selectPiece(null);
-    } else if (ui.mode === 'attacking'  && piece && targetSet.has(piece.id)) { doAttack(piece.id); }
-    else if   (ui.mode === 'reconning'  && piece && targetSet.has(piece.id)) { doRecon(piece.id); }
-    else if   (ui.mode === 'placingMine')                                    { doPlaceMine({ r, c }); }
-    else if   (ui.mode === 'liftingMine' && mineMap.has(`${r},${c}`))       { doLiftMine({ r, c }); }
+    } else if (ui.mode === 'attacking') {
+      if (piece && targetSet.has(piece.id)) doAttack(piece.id);
+      else if (piece) inspect(piece.id);
+    } else if (ui.mode === 'reconning') {
+      if (piece && targetSet.has(piece.id)) doRecon(piece.id);
+      else if (piece) inspect(piece.id);
+    }
+    else if (ui.mode === 'placingMine')                                { doPlaceMine({ r, c }); }
+    else if (ui.mode === 'liftingMine' && mineMap.has(`${r},${c}`))   { doLiftMine({ r, c }); }
   }
 
   const cells = useMemo(() => {
@@ -110,8 +161,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
         return (
           <div style={{
             position: 'absolute', inset: 0,
-            border: `1px solid rgba(0,255,80,0.25)`,
-            boxShadow: `0 0 0 1px rgba(0,255,80,0.1), 0 0 40px rgba(0,255,80,0.08), inset 0 0 60px rgba(0,10,2,0.6)`,
+            border: `1px solid ${mix('var(--main)', 35)}`,
             cursor: locked ? 'wait' : undefined,
           }}>
             <RadarCanvas width={boardW} height={boardH} />
@@ -138,6 +188,8 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                 const piece = pieceMap.get(key);
                 const mine  = mineMap.get(key);
                 const isHL  = highlightSet.has(key);
+                const inFire = ranges.fire.has(key);
+                const potentialMove = !isHL && ranges.move.has(key);
                 const isTargetCell = piece ? targetSet.has(piece.id) : false;
                 const { row, col } = mapCell(rot, r, c, COLS, ROWS);
 
@@ -147,7 +199,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                   borderRight: `1px solid ${bdr}`,
                   borderBottom: `1px solid ${bdr}`,
                 };
-                if (c === 12) border[sideBorder(foldSide)] = '1px solid rgba(0,255,80,0.2)';
+                if (c === 12) border[sideBorder(foldSide)] = `1px solid ${mix('var(--main)', 35)}`;
 
                 return (
                   <div
@@ -166,7 +218,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                     {kind === 'island' && (
                       <div style={{
                         position: 'absolute', inset: 0,
-                        background: 'repeating-linear-gradient(45deg, rgba(0,100,20,0.3) 0,rgba(0,100,20,0.3) 2px, transparent 2px, transparent 5px)',
+                        background: `repeating-linear-gradient(45deg, ${mix('var(--main)', 22)} 0, ${mix('var(--main)', 22)} 2px, transparent 2px, transparent 6px)`,
                         pointerEvents: 'none',
                       }} />
                     )}
@@ -174,20 +226,37 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                     {kind === 'workshop' && cellSize > 22 && (
                       <div style={{
                         position: 'absolute', bottom: 1, left: 2,
-                        fontSize: 7, color: 'rgba(0,255,80,0.7)',
+                        fontSize: 9, color: mix('var(--main)', 80),
                         pointerEvents: 'none', lineHeight: 1,
                       }}>⚙</div>
                     )}
 
-                    {kind === 'arrivalA' && <div style={stripeStyle(stripeA, 'rgba(0,255,80,0.4)')} />}
-                    {kind === 'arrivalB' && <div style={stripeStyle(stripeB, 'rgba(255,120,0,0.4)')} />}
+                    {kind === 'arrivalA' && <div style={stripeStyle(stripeA, mix('var(--main)', 65))} />}
+                    {kind === 'arrivalB' && <div style={stripeStyle(stripeB, mix('var(--rv)', 65))} />}
 
                     {mine && !piece && (
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <IconMine
                           size={Math.floor(cellSize * 0.5)}
-                          color={mine === 'A' ? '#00ff66' : '#ffaa00'}
+                          color={mine === 'A' ? tones.A.main : tones.B.main}
                         />
+                      </div>
+                    )}
+
+                    {inFire && (
+                      <div style={{
+                        position: 'absolute', inset: 0, pointerEvents: 'none',
+                        background: mix('var(--danger)', 11),
+                        boxShadow: `inset 0 0 0 1px ${mix('var(--danger)', 32)}`,
+                      }} />
+                    )}
+
+                    {potentialMove && !piece && (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                        <div style={{
+                          width: cellSize * 0.2, height: cellSize * 0.2, borderRadius: '50%',
+                          background: mix('var(--main)', 55),
+                        }} />
                       </div>
                     )}
 
@@ -195,9 +264,8 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                         <div style={{
                           width: cellSize * 0.25, height: cellSize * 0.25, borderRadius: '50%',
-                          background: '#00ff66',
-                          boxShadow: '0 0 8px #00ff66, 0 0 16px #00ff66',
-                          animation: 'phosphor-pulse 1s infinite',
+                          background: 'var(--main)',
+                          animation: 'pulse 1.2s infinite',
                         }} />
                       </div>
                     )}
@@ -206,9 +274,8 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                         <div style={{
                           width: cellSize * 0.5, height: cellSize * 0.5,
-                          border: '1px solid rgba(255,50,0,0.8)',
+                          border: '2px solid var(--danger)',
                           borderRadius: '50%',
-                          boxShadow: '0 0 6px rgba(255,50,0,0.6)',
                         }} />
                       </div>
                     )}
@@ -217,10 +284,10 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                       <div style={{ position: 'absolute', inset: 2 }}>
                         <PieceToken
                           piece={piece} viewAs={viewAs}
-                          selected={piece.id === ui.selectedPieceId}
+                          selected={piece.id === ui.selectedPieceId || piece.id === ui.inspectId}
+                          enlarge={pieceZoomOn}
                           targetable={targetSet.has(piece.id)}
                           cellSize={cellSize - 4}
-                          onClick={() => handleCellClick(r, c)}
                         />
                       </div>
                     )}
@@ -235,7 +302,7 @@ export const Board: React.FC<Props> = ({ viewAs, locked }) => {
                 ...(foldVertical
                   ? { left: 12 * cellSize - 1, top: 0, bottom: 0, width: 1 }
                   : { top: 12 * cellSize - 1, left: 0, right: 0, height: 1 }),
-                background: 'rgba(0,255,80,0.15)',
+                background: mix('var(--main)', 30),
                 pointerEvents: 'none',
                 zIndex: 3,
               }} />
@@ -259,16 +326,16 @@ const ZoneLabels: React.FC<{ cellSize: number; rot: Rot }> = ({ cellSize, rot })
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         pointerEvents: 'none', zIndex: 2,
       }}>
-        <span style={{ fontSize: 9, letterSpacing: 4, color, textTransform: 'uppercase', textShadow: `0 0 8px ${color}` }}>
-          ◀ {text} ▶
+        <span style={{ fontSize: 11, letterSpacing: 3, color, textTransform: 'uppercase', fontWeight: 700 }}>
+          {text}
         </span>
       </div>
     );
   };
   return (
     <>
-      {label(1, 7, 'ZONA J.A', 'rgba(0,255,80,0.3)')}
-      {label(14, 20, 'ZONA J.B', 'rgba(255,150,0,0.3)')}
+      {label(1, 7, 'ZONA J.A', mix('var(--main)', 30))}
+      {label(14, 20, 'ZONA J.B', mix('var(--rv)', 30))}
     </>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSettings, ZOOM_MAX, ZOOM_MIN } from '../../store/settingsStore';
 import { displayDims, type Rot } from '../boardRotation';
+import { mix } from '../ui';
 
-const PAD = 20;
+const PAD = 4;
 const ZOOM_STEP = 1.2;
 const MIN_CELL = 10;
 const MAX_CELL = 220;
@@ -13,14 +14,21 @@ interface Props {
   children: (cellSize: number, rot: Rot) => React.ReactNode;
 }
 
+export function useEffectiveRotation(cols: number, rows: number, w: number, h: number): Rot {
+  const rotation = useSettings(s => s.rotation);
+  const fitFor = (r: Rot) => {
+    const { dc, dr } = displayDims(r, cols, rows);
+    return Math.max(8, Math.floor(Math.min((w - 2 * PAD) / dc, (h - 2 * PAD) / dr)));
+  };
+  const autoRot: Rot = fitFor(90) > fitFor(0) * 1.05 ? 90 : 0;
+  return rotation === 'auto' ? autoRot : rotation;
+}
+
 export const BoardViewport: React.FC<Props> = ({ cols, rows, children }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const zoom = useSettings(s => s.zoom);
   const zoomBy = useSettings(s => s.zoomBy);
-  const resetZoom = useSettings(s => s.resetZoom);
-  const rotation = useSettings(s => s.rotation);
-  const setSetting = useSettings(s => s.set);
 
   useLayoutEffect(() => {
     const el = wrapRef.current;
@@ -71,14 +79,10 @@ export const BoardViewport: React.FC<Props> = ({ cols, rows, children }) => {
     };
   }, [zoomBy]);
 
-  const fitFor = (r: Rot) => {
-    const { dc, dr } = displayDims(r, cols, rows);
-    return Math.max(8, Math.floor(Math.min((size.w - 2 * PAD) / dc, (size.h - 2 * PAD) / dr)));
-  };
-  const autoRot: Rot = fitFor(90) > fitFor(0) * 1.05 ? 90 : 0;
-  const rot: Rot = rotation === 'auto' ? autoRot : rotation;
+  const rot = useEffectiveRotation(cols, rows, size.w, size.h);
   const { dc, dr } = displayDims(rot, cols, rows);
-  const cell = Math.min(MAX_CELL, Math.max(MIN_CELL, Math.round(fitFor(rot) * zoom)));
+  const fit = Math.max(8, Math.floor(Math.min((size.w - 2 * PAD) / dc, (size.h - 2 * PAD) / dr)));
+  const cell = Math.min(MAX_CELL, Math.max(MIN_CELL, Math.round(fit * zoom)));
 
   return (
     <div
@@ -90,54 +94,58 @@ export const BoardViewport: React.FC<Props> = ({ cols, rows, children }) => {
           {size.w > 0 && children(cell, rot)}
         </div>
       </div>
-
-      <div style={{
-        position: 'absolute', left: 8, bottom: 8, zIndex: 20,
-        display: 'flex', alignItems: 'center',
-        border: '1px solid #003311', background: 'rgba(0,10,2,0.88)',
-      }}>
-        <ZoomBtn label="−" title="Alejar (Ctrl + rueda)" disabled={zoom <= ZOOM_MIN} onClick={() => zoomBy(1 / ZOOM_STEP)} />
-        <button
-          onClick={resetZoom}
-          title="Ajustar a pantalla"
-          style={{
-            minWidth: 54, height: 26, padding: '0 6px',
-            background: 'transparent', border: 'none', borderLeft: '1px solid #003311', borderRight: '1px solid #003311',
-            color: Math.abs(zoom - 1) < 0.01 ? '#00ff66' : '#00cc44',
-            fontSize: 10, letterSpacing: 1, cursor: 'pointer',
-          }}
-        >
-          {Math.round(zoom * 100)}%
-        </button>
-        <ZoomBtn label="+" title="Acercar (Ctrl + rueda)" disabled={zoom >= ZOOM_MAX} onClick={() => zoomBy(ZOOM_STEP)} />
-        <button
-          onClick={() => setSetting({ rotation: ((rot + 90) % 360) as Rot })}
-          title="Rotar tablero 90°"
-          style={{
-            minWidth: 54, height: 26, padding: '0 6px',
-            background: 'transparent', border: 'none', borderLeft: '1px solid #003311',
-            color: '#00cc44', fontSize: 10, letterSpacing: 1, cursor: 'pointer',
-          }}
-        >
-          ⟳ {rot}°{rotation === 'auto' ? ' A' : ''}
-        </button>
-      </div>
     </div>
   );
 };
 
-const ZoomBtn: React.FC<{ label: string; title: string; disabled: boolean; onClick: () => void }> = ({ label, title, disabled, onClick }) => (
+const IconBtn: React.FC<{
+  label: string; title: string; onClick: () => void; disabled?: boolean; wide?: boolean;
+}> = ({ label, title, onClick, disabled, wide }) => (
   <button
     onClick={onClick}
     disabled={disabled}
     title={title}
     style={{
-      width: 28, height: 26, background: 'transparent', border: 'none',
-      color: disabled ? '#003311' : '#00ff66', fontSize: 15, lineHeight: 1,
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      textShadow: disabled ? 'none' : '0 0 6px #00ff66',
+      flex: wide ? 1.4 : 1, height: 32, minWidth: 32, padding: '0 6px',
+      background: 'transparent', cursor: disabled ? 'not-allowed' : 'pointer',
+      border: '1px solid var(--line)', borderRadius: 4,
+      color: disabled ? 'var(--main-mute)' : 'var(--main)', fontSize: 14, lineHeight: 1,
+      opacity: disabled ? 0.5 : 1,
     }}
+    onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = mix('var(--main)', 12); }}
+    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
   >
     {label}
   </button>
 );
+
+export const ViewControls: React.FC<{ vertical?: boolean }> = ({ vertical }) => {
+  const zoom = useSettings(s => s.zoom);
+  const zoomBy = useSettings(s => s.zoomBy);
+  const resetZoom = useSettings(s => s.resetZoom);
+  const rotation = useSettings(s => s.rotation);
+  const setSetting = useSettings(s => s.set);
+  const nextRot = (): Rot => {
+    const cur: Rot = rotation === 'auto' ? 0 : rotation;
+    return ((cur + 90) % 360) as Rot;
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: vertical ? 'column' : 'row', gap: 4 }}>
+      <IconBtn label="−" title="Alejar (Ctrl + rueda)" disabled={zoom <= ZOOM_MIN} onClick={() => zoomBy(1 / ZOOM_STEP)} />
+      <IconBtn
+        label={`${Math.round(zoom * 100)}%`}
+        title="Ajustar a pantalla"
+        wide
+        onClick={resetZoom}
+      />
+      <IconBtn label="+" title="Acercar (Ctrl + rueda)" disabled={zoom >= ZOOM_MAX} onClick={() => zoomBy(ZOOM_STEP)} />
+      <IconBtn
+        label={rotation === 'auto' ? '⟳A' : `⟳${rotation}°`}
+        title="Rotar tablero 90° (en el menú: AUTO)"
+        wide
+        onClick={() => setSetting({ rotation: nextRot() })}
+      />
+    </div>
+  );
+};

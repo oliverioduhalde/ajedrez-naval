@@ -6,12 +6,18 @@ interface Props { width: number; height: number }
 const MAX_CANVAS_SIDE = 1600;
 const BASE_SPEED = 0.0036;
 
+function themeRgb(): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--main-rgb').trim();
+  return v || '46, 232, 111';
+}
+
 export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const radarOn = useSettings(s => s.radarOn);
   const radarSpeed = useSettings(s => s.radarSpeed);
   const radarIntensity = useSettings(s => s.radarIntensity);
+  const colorMain = useSettings(s => s.colorMain);
   const live = useRef({ radarOn, radarSpeed, radarIntensity });
   live.current = { radarOn, radarSpeed, radarIntensity };
 
@@ -24,6 +30,7 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    const rgb = themeRgb();
 
     const cx = width / 2;
     const cy = height / 2;
@@ -34,10 +41,10 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
     function draw() {
       const { radarOn: on, radarSpeed: speed, radarIntensity: k } = live.current;
 
-      ctx.fillStyle = 'rgba(0,10,2,0.85)';
+      ctx.fillStyle = 'rgba(4,10,7,0.9)';
       ctx.fillRect(0, 0, width, height);
 
-      ctx.strokeStyle = 'rgba(0,200,80,0.06)';
+      ctx.strokeStyle = `rgba(${rgb},0.07)`;
       ctx.lineWidth = 1;
       const cols = 24, rows = 20;
       const cw = width / cols, rh = height / rows;
@@ -48,14 +55,14 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
         ctx.beginPath(); ctx.moveTo(0, r * rh); ctx.lineTo(width, r * rh); ctx.stroke();
       }
 
-      ctx.strokeStyle = 'rgba(0,200,80,0.09)';
+      ctx.strokeStyle = `rgba(${rgb},0.1)`;
       for (let i = 1; i <= 4; i++) {
         ctx.beginPath();
         ctx.arc(cx, cy, (maxR / 4) * i, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      ctx.strokeStyle = 'rgba(0,200,80,0.07)';
+      ctx.strokeStyle = `rgba(${rgb},0.08)`;
       ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, height); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(width, cy); ctx.stroke();
 
@@ -63,35 +70,35 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
         const trailSpan = Math.PI * 0.55;
         for (let t = 0; t < 60; t++) {
           const a = angle - (trailSpan / 60) * t;
-          const alpha = (1 - t / 60) * 0.18 * k;
+          const alpha = (1 - t / 60) * 0.16 * k;
 
           ctx.beginPath();
           ctx.moveTo(cx, cy);
           ctx.arc(cx, cy, maxR * 1.5, a - trailSpan / 60, a, false);
           ctx.closePath();
-          ctx.fillStyle = `rgba(0,255,80,${alpha})`;
+          ctx.fillStyle = `rgba(${rgb},${alpha})`;
           ctx.fill();
         }
 
         const ex = cx + Math.cos(angle) * maxR * 1.5;
         const ey = cy + Math.sin(angle) * maxR * 1.5;
         const ledge = ctx.createLinearGradient(cx, cy, ex, ey);
-        ledge.addColorStop(0, 'rgba(0,255,80,0)');
-        ledge.addColorStop(0.4, `rgba(0,255,80,${0.12 * k})`);
-        ledge.addColorStop(1, `rgba(0,255,120,${Math.min(1, 0.55 * k)})`);
+        ledge.addColorStop(0, `rgba(${rgb},0)`);
+        ledge.addColorStop(0.4, `rgba(${rgb},${0.1 * k})`);
+        ledge.addColorStop(1, `rgba(${rgb},${Math.min(1, 0.5 * k)})`);
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(ex, ey);
         ctx.strokeStyle = ledge;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         ctx.stroke();
 
         if (Math.random() > 0.994) {
           const bx = Math.random() * width;
           const by = Math.random() * height;
           const br = ctx.createRadialGradient(bx, by, 0, bx, by, 6);
-          br.addColorStop(0, `rgba(0,255,80,${Math.min(1, 0.9 * k)})`);
-          br.addColorStop(1, 'rgba(0,255,80,0)');
+          br.addColorStop(0, `rgba(${rgb},${Math.min(1, 0.8 * k)})`);
+          br.addColorStop(1, `rgba(${rgb},0)`);
           ctx.fillStyle = br;
           ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI * 2); ctx.fill();
         }
@@ -105,7 +112,7 @@ export const RadarCanvas: React.FC<Props> = ({ width, height }) => {
 
     draw();
     return () => cancelAnimationFrame(rafRef.current);
-  }, [width, height, scale]);
+  }, [width, height, scale, colorMain]);
 
   return (
     <canvas

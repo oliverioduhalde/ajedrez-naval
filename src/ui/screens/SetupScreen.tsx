@@ -1,23 +1,28 @@
 import React, { useState } from 'react';
 import { useGameStore, canSeeIdentity } from '../../store/gameStore';
+import { useSettings } from '../../store/settingsStore';
 import { pieceLabel } from '../../engine/pieces';
 import { getCellKind, getSetupCells } from '../../engine/board';
 import { getUnitIcon } from '../components/PieceIcons';
 import { RadarCanvas } from '../components/RadarCanvas';
-import { BoardViewport } from '../components/BoardViewport';
+import { BoardViewport, ViewControls } from '../components/BoardViewport';
+import { SystemHeader } from '../components/SystemHeader';
 import { useStackedLayout } from '../hooks/useStackedLayout';
 import { displayDims, mapCell, mapRect, mapSide, sideBorder } from '../boardRotation';
+import { PIECE_NAMES } from '../messages';
+import { useSideTones } from '../theme';
+import { Btn, Card, Label, mix } from '../ui';
 import type { Piece } from '../../engine/types';
 
-const P  = '#00ff66';
-const AM = '#ffaa00';
 const COLS = 24;
 const ROWS = 20;
 
-const CELL_BG: Record<string, string> = {
-  sea: 'transparent', island: 'rgba(0,60,10,0.95)',
-  workshop: 'rgba(0,80,20,0.85)', bay: 'rgba(0,60,25,0.7)',
-  arrivalA: 'rgba(0,40,12,0.7)', arrivalB: 'rgba(30,10,0,0.7)',
+type DeployMode = 'manual' | 'random' | 'taskforce';
+
+const MODE_INFO: Record<DeployMode, string> = {
+  manual: 'Elegí una pieza de la bandeja y tocá una casilla de tu zona. Tocá una pieza colocada para devolverla a la bandeja.',
+  random: 'Reparte las 16 piezas al azar dentro de tu zona de salida. Podés repetir el sorteo.',
+  taskforce: 'Forma 3 grupos de combate en la zona de salida: uno central pesado con el acorazado y dos de flanco, con los aviones atrás.',
 };
 
 const cells: { r: number; c: number }[] = [];
@@ -26,33 +31,48 @@ for (let r = 1; r <= ROWS; r++)
     cells.push({ r, c });
 
 export const SetupScreen: React.FC = () => {
-  const { game, ui, placePiece, finishSetup, clearError } = useGameStore();
+  const { game, ui, placePiece, unplacePiece, deployFleet, finishSetup, clearError } = useGameStore();
   const stacked = useStackedLayout();
+  const tones = useSideTones();
   const player = game.setupPlayer;
+  const vsCpu = useSettings(s => s.vsCpu);
+  const viewer = vsCpu ? 'A' : player;
+  const cpuDeploying = vsCpu && player === 'B';
   const myPieces = game.pieces.filter(p => p.owner === player);
-  const unplaced  = myPieces.filter(p => p.pos === null);
+  const unplaced = myPieces.filter(p => p.pos === null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<DeployMode>('manual');
 
   const validCells = getSetupCells(player);
-  const validSet   = new Set(validCells.map(c => `${c.r},${c.c}`));
-  const pieceMap   = new Map<string, Piece>();
+  const validSet = new Set(validCells.map(c => `${c.r},${c.c}`));
+  const pieceMap = new Map<string, Piece>();
   for (const p of game.pieces) if (p.pos) pieceMap.set(`${p.pos.r},${p.pos.c}`, p);
 
-  const allPlaced  = unplaced.length === 0;
-  const color      = player === 'A' ? P : AM;
+  const allPlaced = unplaced.length === 0;
+  const sideVar = player === 'A' ? 'var(--main)' : 'var(--rv)';
+  const sideTone = tones[player];
+
+  function pickMode(m: DeployMode) {
+    setMode(m);
+    setSelectedId(null);
+    if (m === 'random' || m === 'taskforce') deployFleet(m);
+  }
 
   function handleCell(r: number, c: number) {
-    if (!selectedId || !validSet.has(`${r},${c}`)) return;
-    if (!pieceMap.has(`${r},${c}`)) {
-      placePiece(selectedId, { r, c });
-      setSelectedId(null);
+    const here = pieceMap.get(`${r},${c}`);
+    if (here) {
+      if (here.owner === player && !selectedId) unplacePiece(here.id);
+      return;
     }
+    if (!selectedId || !validSet.has(`${r},${c}`)) return;
+    placePiece(selectedId, { r, c });
+    setSelectedId(null);
   }
 
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: stacked ? 'column' : 'row',
-      gap: 8, overflow: 'hidden',
+      gap: 4, overflow: 'hidden',
     }}>
       <BoardViewport cols={COLS} rows={ROWS}>
         {(cellSize, rot) => {
@@ -62,29 +82,46 @@ export const SetupScreen: React.FC = () => {
           const foldSide = mapSide(rot, 'right');
           const zoneA = mapRect(rot, 1, 1, 7, COLS, COLS, ROWS);
           const zoneB = mapRect(rot, 14, 1, 20, COLS, COLS, ROWS);
+          const zoneLabel = (rect: typeof zoneA, text: string, active: boolean, colorVar: string) => (
+            <div style={{
+              position: 'absolute',
+              left: rect.left * cellSize, top: rect.top * cellSize,
+              width: rect.width * cellSize, height: rect.height * cellSize,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'none', zIndex: 2,
+              fontSize: 11, letterSpacing: 3, fontWeight: 700,
+              color: mix(colorVar, active ? 40 : 14),
+            }}>{text}</div>
+          );
           return (
             <div style={{
               position: 'absolute', inset: 0, overflow: 'hidden',
-              border: `1px solid rgba(0,255,80,0.2)`,
-              boxShadow: `0 0 30px rgba(0,255,80,0.06)`,
+              border: `1px solid ${mix('var(--main)', 35)}`,
             }}>
               <RadarCanvas width={boardW} height={boardH} />
 
               {cells.map(({ r, c }) => {
-                const kind   = getCellKind(r, c);
-                const key    = `${r},${c}`;
-                const piece  = pieceMap.get(key);
-                const isVT   = validSet.has(key) && selectedId !== null && !piece;
+                const kind = getCellKind(r, c);
+                const key = `${r},${c}`;
+                const piece = pieceMap.get(key);
+                const isVT = validSet.has(key) && selectedId !== null && !piece;
                 const { row, col } = mapCell(rot, r, c, COLS, ROWS);
 
-                const bg  = isVT ? 'rgba(0,255,100,0.12)' : (CELL_BG[kind] ?? 'transparent');
-                const bdr = isVT ? 'rgba(0,255,100,0.4)' : 'rgba(0,200,80,0.06)';
+                const bg = isVT ? mix(sideVar, 20)
+                  : kind === 'island' ? mix('var(--main)', 14)
+                  : kind === 'workshop' ? mix('var(--main)', 22)
+                  : kind === 'bay' ? mix('var(--main)', 10)
+                  : kind === 'arrivalA' ? mix('var(--main)', 9)
+                  : kind === 'arrivalB' ? mix('var(--rv)', 9)
+                  : 'transparent';
+                const bdr = isVT ? mix(sideVar, 55) : mix('var(--main)', 9);
                 const border: Record<string, string> = {
                   borderRight: `1px solid ${bdr}`,
                   borderBottom: `1px solid ${bdr}`,
                 };
-                if (c === 12) border[sideBorder(foldSide)] = '1px solid rgba(0,255,80,0.2)';
+                if (c === 12) border[sideBorder(foldSide)] = `1px solid ${mix('var(--main)', 35)}`;
 
+                const own = piece && piece.owner === player;
                 return (
                   <div
                     key={key}
@@ -96,43 +133,42 @@ export const SetupScreen: React.FC = () => {
                       backgroundColor: bg,
                       boxSizing: 'border-box',
                       ...border,
-                      cursor: isVT ? 'crosshair' : 'default',
+                      cursor: isVT ? 'crosshair' : own && !selectedId ? 'pointer' : 'default',
                       zIndex: 1,
                     }}
                   >
                     {kind === 'island' && (
                       <div style={{
                         position: 'absolute', inset: 0,
-                        background: 'repeating-linear-gradient(45deg, rgba(0,100,20,0.35) 0, rgba(0,100,20,0.35) 2px, transparent 2px, transparent 5px)',
+                        background: `repeating-linear-gradient(45deg, ${mix('var(--main)', 22)} 0, ${mix('var(--main)', 22)} 2px, transparent 2px, transparent 6px)`,
                         pointerEvents: 'none',
                       }} />
                     )}
                     {isVT && (
-                      <div style={{
-                        position: 'absolute', inset: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <div style={{
                           width: cellSize * 0.28, height: cellSize * 0.28, borderRadius: '50%',
-                          background: P, boxShadow: `0 0 8px ${P}`,
-                          animation: 'phosphor-pulse 1s infinite',
+                          background: sideVar, animation: 'pulse 1.2s infinite',
                         }} />
                       </div>
                     )}
                     {piece && (
-                      <div style={{
-                        position: 'absolute', inset: 1,
-                        display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', justifyContent: 'center', gap: 1,
-                        border: `1px solid ${piece.owner === 'A' ? '#004d1a' : '#553300'}`,
-                        background: piece.owner === 'A' ? 'rgba(0,20,8,0.9)' : 'rgba(20,8,0,0.9)',
-                      }}>
-                        {canSeeIdentity(piece, player)
-                          ? getUnitIcon(piece.type, Math.floor(cellSize * 0.5), piece.owner === 'A' ? P : AM)
-                          : <span style={{ fontSize: Math.floor(cellSize * 0.3), color: '#004d1a' }}>?</span>
+                      <div
+                        title={own ? 'Tocá para devolver a la bandeja' : undefined}
+                        style={{
+                          position: 'absolute', inset: 2,
+                          display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center', gap: 1, borderRadius: 4,
+                          border: `1px solid ${mix(piece.owner === 'A' ? 'var(--main)' : 'var(--rv)', 55)}`,
+                          background: mix(piece.owner === 'A' ? 'var(--main)' : 'var(--rv)', 12),
+                        }}
+                      >
+                        {canSeeIdentity(piece, viewer)
+                          ? getUnitIcon(piece.type, Math.floor(cellSize * 0.5), tones[piece.owner].main)
+                          : <span style={{ fontSize: Math.floor(cellSize * 0.34), fontWeight: 800, color: mix(piece.owner === 'A' ? 'var(--main)' : 'var(--rv)', 65) }}>?</span>
                         }
-                        {cellSize > 22 && canSeeIdentity(piece, player) && (
-                          <span style={{ fontSize: 6, color: piece.owner === 'A' ? '#00aa44' : '#aa7700', letterSpacing: 0 }}>
+                        {cellSize > 26 && canSeeIdentity(piece, viewer) && (
+                          <span style={{ fontSize: 9, color: tones[piece.owner].soft, fontWeight: 700 }}>
                             {pieceLabel(piece.type)}
                           </span>
                         )}
@@ -144,22 +180,8 @@ export const SetupScreen: React.FC = () => {
 
               {cellSize >= 24 && (
                 <>
-                  <div style={{
-                    position: 'absolute',
-                    left: zoneA.left * cellSize, top: zoneA.top * cellSize,
-                    width: zoneA.width * cellSize, height: zoneA.height * cellSize,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    pointerEvents: 'none', zIndex: 2,
-                    fontSize: 8, letterSpacing: 4, color: player === 'A' ? 'rgba(0,255,80,0.35)' : 'rgba(0,255,80,0.1)',
-                  }}>ZONA J.A</div>
-                  <div style={{
-                    position: 'absolute',
-                    left: zoneB.left * cellSize, top: zoneB.top * cellSize,
-                    width: zoneB.width * cellSize, height: zoneB.height * cellSize,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    pointerEvents: 'none', zIndex: 2,
-                    fontSize: 8, letterSpacing: 4, color: player === 'B' ? 'rgba(255,150,0,0.35)' : 'rgba(255,150,0,0.1)',
-                  }}>ZONA J.B</div>
+                  {zoneLabel(zoneA, 'ZONA J.A', player === 'A', 'var(--main)')}
+                  {zoneLabel(zoneB, 'ZONA J.B', player === 'B', 'var(--rv)')}
                 </>
               )}
             </div>
@@ -169,100 +191,124 @@ export const SetupScreen: React.FC = () => {
 
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 8,
-        width: stacked ? '100%' : 'clamp(200px, 24vw, 260px)', flexShrink: 0,
-        maxHeight: stacked ? '44%' : undefined,
-        overflowY: 'auto',
+        width: stacked ? '100%' : 'clamp(220px, 24vw, 280px)', flexShrink: 0,
+        maxHeight: stacked ? '46%' : undefined,
+        overflowY: 'auto', paddingRight: 2,
       }}>
-        <div style={{
-          border: `1px solid ${color}33`, padding: '8px 10px',
-          background: 'rgba(0,10,2,0.9)',
-        }}>
+        <SystemHeader />
+
+        <Card style={{ padding: '8px 10px' }}>
+          <Label>Vista del tablero</Label>
+          <div style={{ marginTop: 6 }}><ViewControls /></div>
+        </Card>
+
+        <Card style={{ borderColor: mix(sideVar, 40) }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 28, height: 28, border: `1px solid ${color}`,
+              width: 32, height: 32, border: `2px solid ${sideVar}`, borderRadius: 6, flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 700, color,
-              boxShadow: `0 0 8px ${color}`, flexShrink: 0,
+              fontSize: 15, fontWeight: 800, color: sideVar, background: mix(sideVar, 14),
             }}>{player}</div>
             <div>
-              <div style={{ fontSize: 11, color, fontWeight: 700, letterSpacing: 1.5 }}>
-                JUGADOR {player}
+              <div style={{ fontSize: 14, color: sideVar, fontWeight: 700 }}>
+                {vsCpu && player === 'B' ? 'CPU' : `Jugador ${player}`}
               </div>
-              <div style={{ fontSize: 9, color: '#00aa44', letterSpacing: 1, marginTop: 1 }}>
-                DESPLIEGUE DE FLOTA
-              </div>
+              <div style={{ fontSize: 12, color: 'var(--main-soft)' }}>Despliegue de la flota</div>
             </div>
           </div>
-          <div style={{ fontSize: 9, color: '#005522', letterSpacing: 1, marginTop: 8 }}>
-            ZONA: FILAS {player === 'A' ? '01–07' : '14–20'}<br />
-            {unplaced.length > 0 ? `${16 - unplaced.length}/16 DESPLEGADAS` : '✓ FLOTA LISTA'}
+          <div style={{ fontSize: 12, color: 'var(--main-mute)', marginTop: 8 }}>
+            Zona de salida: filas {player === 'A' ? '1 a 7' : '14 a 20'}<br />
+            {unplaced.length > 0 ? `${16 - unplaced.length} de 16 piezas desplegadas` : 'Flota completa'}
           </div>
           {ui.errorMessage && (
             <div onClick={clearError} style={{
-              marginTop: 8, fontSize: 9, color: '#ff4444', cursor: 'pointer',
-              border: '1px solid #ff4444', padding: '2px 6px',
-              boxShadow: '0 0 6px rgba(255,0,0,0.3)',
+              marginTop: 8, fontSize: 12, color: 'var(--danger)', cursor: 'pointer',
+              border: '1px solid var(--danger)', borderRadius: 4, padding: '4px 8px',
             }}>
-              ▸ ERR: {ui.errorMessage}
+              {ui.errorMessage}
             </div>
           )}
-        </div>
+        </Card>
 
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', gap: 4,
-          border: '1px solid #003311', padding: '6px 8px',
-          background: 'rgba(0,8,2,0.9)',
-        }}>
-          {unplaced.map(p => {
-            const isSel = p.id === selectedId;
-            return (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(isSel ? null : p.id)}
-                title={p.type}
-                style={{
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 2, padding: '4px 6px',
-                  border: `1px solid ${isSel ? color : '#003311'}`,
-                  background: isSel ? `${color}18` : 'transparent',
-                  cursor: 'pointer', minWidth: 38,
-                  boxShadow: isSel ? `0 0 8px ${color}` : 'none',
-                  transition: 'all 0.1s',
-                  color: isSel ? color : '#006622',
-                }}
-              >
-                {getUnitIcon(p.type, 18, isSel ? color : '#006622')}
-                <span style={{ fontSize: 7, fontWeight: 700, letterSpacing: 0.5 }}>
-                  {pieceLabel(p.type)}
-                </span>
-              </button>
-            );
-          })}
-          {allPlaced && (
-            <span style={{ color: P, fontSize: 10, letterSpacing: 2, padding: '4px 0' }}>
-              ▸ FLOTA DESPLEGADA
-            </span>
-          )}
-        </div>
+        {cpuDeploying ? (
+          <Card>
+            <div style={{ fontSize: 13, color: 'var(--rv)', animation: 'pulse 1s infinite' }}>
+              La CPU está desplegando su flota…
+            </div>
+          </Card>
+        ) : (
+          <>
+            <Card>
+              <Label>Disposición</Label>
+              <div style={{ display: 'flex', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden', margin: '8px 0' }}>
+                {([['manual', 'Manual'], ['random', 'Aleatoria'], ['taskforce', 'Task force']] as [DeployMode, string][]).map(([m, label], i) => (
+                  <button
+                    key={m}
+                    onClick={() => pickMode(m)}
+                    style={{
+                      flex: 1, padding: '8px 2px', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                      background: mode === m ? mix(sideVar, 20) : 'transparent',
+                      color: mode === m ? sideVar : 'var(--main-soft)',
+                      border: 'none', borderLeft: i === 0 ? 'none' : '1px solid var(--line)',
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--main-mute)', lineHeight: 1.4 }}>{MODE_INFO[mode]}</div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                {mode === 'random' && <Btn onClick={() => deployFleet('random')} style={{ textAlign: 'center' }}>Sortear de nuevo</Btn>}
+                <Btn onClick={() => { setSelectedId(null); deployFleet('clear'); }} disabled={unplaced.length === 16} style={{ textAlign: 'center' }}>
+                  Limpiar flota
+                </Btn>
+              </div>
+            </Card>
 
-        <button
-          disabled={!allPlaced}
-          onClick={() => finishSetup()}
-          style={{
-            padding: '10px 12px', flexShrink: 0,
-            border: `1px solid ${allPlaced ? color : '#002d12'}`,
-            background: 'transparent', color: allPlaced ? color : '#003311',
-            cursor: allPlaced ? 'pointer' : 'not-allowed',
-            fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
-            boxShadow: allPlaced ? `0 0 10px ${color}30` : 'none',
-            textShadow: allPlaced ? `0 0 8px ${color}` : 'none',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { if (allPlaced) e.currentTarget.style.background = `${color}12`; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-        >
-          ▸ {game.phase === 'setup' ? 'LISTO — PASAR A JUGADOR B' : 'LISTO — INICIAR MISIÓN'}
-        </button>
+            <Card>
+              <Label>Bandeja de piezas</Label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {unplaced.map(p => {
+                  const isSel = p.id === selectedId;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedId(isSel ? null : p.id)}
+                      title={PIECE_NAMES[p.type]}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                        padding: '5px 6px', minWidth: 42, borderRadius: 4, cursor: 'pointer',
+                        border: `1px solid ${isSel ? sideVar : 'var(--line)'}`,
+                        background: isSel ? mix(sideVar, 20) : 'transparent',
+                        color: isSel ? sideVar : 'var(--main-soft)',
+                      }}
+                    >
+                      {getUnitIcon(p.type, 20, isSel ? sideTone.main : sideTone.soft)}
+                      <span style={{ fontSize: 10, fontWeight: 700 }}>{pieceLabel(p.type)}</span>
+                    </button>
+                  );
+                })}
+                {allPlaced && (
+                  <span style={{ color: sideVar, fontSize: 13, padding: '4px 0' }}>Toda la flota está en el mar.</span>
+                )}
+              </div>
+            </Card>
+
+            <button
+              disabled={!allPlaced}
+              onClick={() => { setSelectedId(null); finishSetup(); }}
+              style={{
+                padding: '12px', flexShrink: 0, borderRadius: 4, fontSize: 14, fontWeight: 700,
+                border: `1px solid ${allPlaced ? sideVar : 'var(--line)'}`,
+                background: allPlaced ? mix(sideVar, 14) : 'transparent',
+                color: allPlaced ? sideVar : 'var(--main-mute)',
+                cursor: allPlaced ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {game.phase === 'setup'
+                ? (vsCpu ? 'Listo: enfrentar a la CPU' : 'Listo: pasar al jugador B')
+                : 'Listo: iniciar la partida'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

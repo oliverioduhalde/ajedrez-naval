@@ -3,6 +3,7 @@ import type { GameState } from '../engine/types';
 import {
   createInitialState,
   placePieceInSetup,
+  unplacePieceInSetup,
   finishSetup,
   selectNumberToken,
   movePiece,
@@ -15,11 +16,15 @@ import {
   canSeeIdentity,
 } from '../engine/gameEngine';
 import { getReachableCells } from '../engine/movement';
+import { randomDeployment, taskForceDeployment } from '../engine/deployment';
 import { getTargetableCells } from '../engine/lineOfSight';
 import { getActualRange, getNominalRange } from '../engine/pieces';
+import { esError } from '../ui/messages';
 
 interface UIState {
   selectedPieceId: string | null;
+  inspectId: string | null;
+  zoomPieceId: string | null;
   highlightedCells: { r: number; c: number }[];
   targetablePieceIds: string[];
   errorMessage: string | null;
@@ -33,10 +38,15 @@ interface GameStore {
   // Setup
   placePiece: (pieceId: string, pos: { r: number; c: number }) => void;
   finishSetup: () => void;
+  unplacePiece: (pieceId: string) => void;
+  deployFleet: (mode: 'random' | 'taskforce' | 'clear') => void;
 
   // Play
   selectToken: (token: number) => void;
   selectPiece: (pieceId: string | null) => void;
+  inspect: (pieceId: string | null) => void;
+  openPieceZoom: (pieceId: string) => void;
+  closePieceZoom: () => void;
   setMode: (mode: UIState['mode']) => void;
   doMove: (destination: { r: number; c: number }) => void;
   doAttack: (targetId: string) => void;
@@ -52,6 +62,8 @@ interface GameStore {
 
 const initUI = (): UIState => ({
   selectedPieceId: null,
+  inspectId: null,
+  zoomPieceId: null,
   highlightedCells: [],
   targetablePieceIds: [],
   errorMessage: null,
@@ -63,7 +75,7 @@ function applyOrError(
   set: (fn: (s: GameStore) => Partial<GameStore>) => void,
 ) {
   if (typeof result === 'string') {
-    set(() => ({ ui: { ...initUI(), errorMessage: result } } as Partial<GameStore>));
+    set(() => ({ ui: { ...initUI(), errorMessage: esError(result) } } as Partial<GameStore>));
   } else {
     set(() => ({ game: result, ui: initUI() } as Partial<GameStore>));
   }
@@ -83,6 +95,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
     applyOrError(result, set);
   },
 
+  unplacePiece(pieceId) {
+    const result = unplacePieceInSetup(get().game, pieceId);
+    applyOrError(result, set);
+  },
+
+  deployFleet(mode) {
+    let state = get().game;
+    if (state.phase !== 'setup' && state.phase !== 'setupB') return;
+    const player = state.setupPlayer;
+    for (const p of state.pieces.filter(x => x.owner === player && x.pos)) {
+      const r = unplacePieceInSetup(state, p.id);
+      if (typeof r === 'string') { applyOrError(r, set); return; }
+      state = r;
+    }
+    if (mode !== 'clear') {
+      const placements = mode === 'random'
+        ? randomDeployment(player, state.pieces)
+        : taskForceDeployment(player, state.pieces);
+      for (const pl of placements) {
+        const r = placePieceInSetup(state, pl.pieceId, pl.pos);
+        if (typeof r === 'string') { applyOrError(r, set); return; }
+        state = r;
+      }
+    }
+    applyOrError(state, set);
+  },
+
   selectToken(token) {
     const result = selectNumberToken(get().game, token);
     applyOrError(result, set);
@@ -91,7 +130,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   selectPiece(pieceId) {
     const { game, ui } = get();
     if (!pieceId) {
-      set(() => ({ ui: { ...ui, selectedPieceId: null, highlightedCells: [], targetablePieceIds: [], mode: 'idle' } } as Partial<GameStore>));
+      set(() => ({ ui: { ...ui, selectedPieceId: null, inspectId: null, highlightedCells: [], targetablePieceIds: [], mode: 'idle' } } as Partial<GameStore>));
       return;
     }
     const piece = game.pieces.find(p => p.id === pieceId);
@@ -117,8 +156,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     set(() => ({
-      ui: { ...ui, selectedPieceId: pieceId, highlightedCells: highlighted, targetablePieceIds: targetableIds }
+      ui: { ...ui, selectedPieceId: pieceId, inspectId: pieceId, highlightedCells: highlighted, targetablePieceIds: targetableIds }
     } as Partial<GameStore>));
+  },
+
+  inspect(pieceId) {
+    set(s => ({ ui: { ...s.ui, inspectId: pieceId } } as Partial<GameStore>));
+  },
+
+  openPieceZoom(pieceId) {
+    set(s => ({ ui: { ...s.ui, zoomPieceId: pieceId, inspectId: pieceId } } as Partial<GameStore>));
+  },
+
+  closePieceZoom() {
+    set(s => ({ ui: { ...s.ui, zoomPieceId: null } } as Partial<GameStore>));
   },
 
   setMode(mode) {
@@ -131,8 +182,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   doMove(destination) {
     const { game, ui } = get();
     if (!ui.selectedPieceId) return;
-    const result = movePiece(game, ui.selectedPieceId, destination);
+    const pieceId = ui.selectedPieceId;
+    const result = movePiece(game, pieceId, destination);
     applyOrError(result, set);
+    if (typeof result !== 'string' && get().game.phase === 'play') {
+      const moved = get().game.pieces.find(p => p.id === pieceId);
+      if (moved?.pos) get().selectPiece(pieceId);
+    }
   },
 
   doAttack(targetId) {

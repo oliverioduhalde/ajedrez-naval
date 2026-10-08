@@ -2,32 +2,25 @@ import { useGameStore } from './store/gameStore';
 import { SetupScreen } from './ui/screens/SetupScreen';
 import { HandoffScreen } from './ui/screens/HandoffScreen';
 import { GameScreen } from './ui/screens/GameScreen';
-import { CRTOverlay } from './ui/components/CRTOverlay';
-import { SystemHeader } from './ui/components/SystemHeader';
+import { ScreenEffects } from './ui/components/ScreenEffects';
+import { useSettings } from './store/settingsStore';
+import { useCpuDriver } from './ui/hooks/useCpuDriver';
 
 export default function App() {
   const phase = useGameStore(s => s.game.phase);
-  const inPlay = phase === 'play' || phase === 'finished';
+  const vsCpu = useSettings(s => s.vsCpu);
+  useCpuDriver();
+  const inPlay = phase === 'play' || phase === 'finished' || (vsCpu && phase === 'handoffPlay');
 
   return (
-    <CRTOverlay>
-      <div style={{
-        height: '100dvh', width: '100vw',
-        display: 'flex', flexDirection: 'column',
-        background: '#000a02',
-        overflow: 'hidden',
-      }}>
-        {!inPlay && <SystemHeader variant="bar" />}
-
-        <main style={{
-          flex: 1, minHeight: 0, overflow: 'hidden',
-          padding: inPlay ? '6px 8px' : '8px 12px',
-        }}>
+    <ScreenEffects>
+      <div style={{ height: '100dvh', width: '100vw', background: 'var(--bg)', overflow: 'hidden' }}>
+        <main style={{ height: '100%', overflow: 'hidden', padding: 4 }}>
           {(phase === 'setup' || phase === 'setupB') && <SetupScreen />}
-          {phase === 'handoffPlay' && <HandoffScreen />}
+          {phase === 'handoffPlay' && !vsCpu && <HandoffScreen />}
           {inPlay && <GameScreen />}
         </main>
       </div>
-    </CRTOverlay>
+    </ScreenEffects>
   );
 }

@@ -1,102 +1,75 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import { useSettings, ZOOM_MAX, ZOOM_MIN } from '../../store/settingsStore';
-
-const P = '#00ff66';
-const PD = '#004d1a';
-const BG = 'rgba(0,10,2,0.97)';
+import { CPU_AVAILABLE, useSettings, ZOOM_MAX, ZOOM_MIN } from '../../store/settingsStore';
+import { CPU_LEVELS } from '../../ai/types';
+import { PALETTES, paletteSwatch, resolveRival, type PaletteId } from '../theme';
+import { mix } from '../ui';
 
 const Toggle: React.FC<{
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  desc?: string;
+  label: string; value: boolean; onChange: (v: boolean) => void; desc?: string;
 }> = ({ label, value, onChange, desc }) => (
-  <div style={{ marginBottom: 18 }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ color: value ? P : '#00aa44', fontSize: 13, letterSpacing: 1 }}>{label}</span>
+  <div style={{ marginBottom: 16 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+      <span style={{ color: value ? 'var(--main)' : 'var(--main-soft)', fontSize: 14 }}>{label}</span>
       <button
         onClick={() => onChange(!value)}
+        aria-pressed={value}
         style={{
-          width: 44, height: 22,
-          borderRadius: 11,
-          border: `1px solid ${value ? P : '#004d1a'}`,
-          background: value ? PD : '#001206',
-          cursor: 'pointer',
-          position: 'relative',
-          transition: 'all 0.2s',
-          boxShadow: value ? `0 0 8px ${P}` : 'none',
+          width: 44, height: 24, minWidth: 44, minHeight: 24, borderRadius: 12, cursor: 'pointer', position: 'relative',
+          border: `1px solid ${value ? 'var(--main)' : 'var(--line)'}`,
+          background: value ? mix('var(--main)', 30) : 'var(--panel)',
+          transition: 'background 0.15s',
         }}
       >
         <div style={{
-          position: 'absolute',
-          top: 2, left: value ? 24 : 2,
-          width: 16, height: 16,
-          borderRadius: '50%',
-          background: value ? P : '#00aa44',
-          transition: 'left 0.2s',
-          boxShadow: value ? `0 0 6px ${P}` : 'none',
+          position: 'absolute', top: 3, left: value ? 22 : 3, width: 16, height: 16, borderRadius: '50%',
+          background: value ? 'var(--main)' : 'var(--main-mute)', transition: 'left 0.15s',
         }} />
       </button>
     </div>
-    {desc && <div style={{ fontSize: 10, color: '#005522', marginTop: 3, letterSpacing: 0.5 }}>{desc}</div>}
+    {desc && <div style={{ fontSize: 12, color: 'var(--main-mute)', marginTop: 4, lineHeight: 1.4 }}>{desc}</div>}
   </div>
 );
 
-
 const Section: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <>
-    <div style={{ height: 1, background: PD, marginBottom: 20, opacity: 0.3 }} />
-    <div style={{ fontSize: 10, color: '#005522', letterSpacing: 3, marginBottom: 16, textTransform: 'uppercase' }}>
-      {children}
-    </div>
-  </>
+  <div style={{
+    fontSize: 11, color: 'var(--main-soft)', letterSpacing: 1.6, textTransform: 'uppercase', fontWeight: 700,
+    margin: '8px 0 14px', paddingTop: 14, borderTop: '1px solid var(--line)',
+  }}>
+    {children}
+  </div>
 );
 
 const Slider: React.FC<{
   label: string; value: number; min: number; max: number; step: number;
   format: (v: number) => string; onChange: (v: number) => void; disabled?: boolean;
 }> = ({ label, value, min, max, step, format, onChange, disabled }) => (
-  <div style={{ marginBottom: 18, opacity: disabled ? 0.35 : 1 }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, letterSpacing: 1, color: '#00aa44' }}>
+  <div style={{ marginBottom: 16, opacity: disabled ? 0.4 : 1 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--main-soft)' }}>
       <span>{label}</span>
-      <span style={{ color: P }}>{format(value)}</span>
+      <span style={{ color: 'var(--main)' }}>{format(value)}</span>
     </div>
     <input
       type="range" min={min} max={max} step={step} value={value} disabled={disabled}
       onChange={e => onChange(Number(e.target.value))}
-      style={{ width: '100%', marginTop: 6, accentColor: P, cursor: disabled ? 'not-allowed' : 'pointer' }}
+      style={{ width: '100%', marginTop: 6, cursor: disabled ? 'not-allowed' : 'pointer' }}
     />
   </div>
-);
-
-const MiniBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
-  <button
-    onClick={onClick}
-    style={{
-      flex: 1, padding: '6px 0', background: 'transparent', cursor: 'pointer',
-      border: `1px solid ${PD}`, color: '#00cc44', fontSize: 11, letterSpacing: 1,
-    }}
-  >
-    {label}
-  </button>
 );
 
 const Seg: React.FC<{
   options: { value: string; label: string }[]; value: string; onChange: (v: string) => void;
 }> = ({ options, value, onChange }) => (
-  <div style={{ display: 'flex', border: `1px solid ${PD}`, marginBottom: 18 }}>
+  <div style={{ display: 'flex', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden', marginBottom: 14 }}>
     {options.map((o, i) => (
       <button
         key={o.value}
         onClick={() => onChange(o.value)}
         style={{
-          flex: 1, padding: '7px 0', cursor: 'pointer',
-          background: o.value === value ? PD : 'transparent',
-          color: o.value === value ? P : '#00aa44',
-          border: 'none', borderLeft: i === 0 ? 'none' : `1px solid ${PD}`,
-          fontSize: 11, letterSpacing: 1,
-          textShadow: o.value === value ? `0 0 6px ${P}` : 'none',
+          flex: 1, padding: '8px 0', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+          background: o.value === value ? mix('var(--main)', 20) : 'transparent',
+          color: o.value === value ? 'var(--main)' : 'var(--main-soft)',
+          border: 'none', borderLeft: i === 0 ? 'none' : '1px solid var(--line)',
         }}
       >
         {o.label}
@@ -105,194 +78,216 @@ const Seg: React.FC<{
   </div>
 );
 
+const MiniBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      flex: 1, padding: '7px 0', background: 'transparent', cursor: 'pointer', borderRadius: 4,
+      border: '1px solid var(--line)', color: 'var(--main-soft)', fontSize: 12, fontWeight: 600,
+    }}
+  >
+    {label}
+  </button>
+);
+
+const Swatches: React.FC<{
+  value: string; onPick: (id: PaletteId) => void; disabledId?: PaletteId; extra?: React.ReactNode;
+}> = ({ value, onPick, disabledId, extra }) => (
+  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+    {extra}
+    {PALETTES.map(p => {
+      const selected = value === p.id;
+      const disabled = disabledId === p.id;
+      return (
+        <button
+          key={p.id}
+          onClick={() => !disabled && onPick(p.id)}
+          disabled={disabled}
+          title={p.name}
+          aria-label={p.name}
+          style={{
+            width: 30, height: 30, minWidth: 30, minHeight: 30, borderRadius: '50%', cursor: disabled ? 'not-allowed' : 'pointer',
+            background: paletteSwatch(p.id), opacity: disabled ? 0.25 : 1,
+            border: selected ? '3px solid var(--text)' : '2px solid var(--line)',
+            boxShadow: selected ? `0 0 0 2px ${mix('var(--text)', 30)}` : 'none',
+          }}
+        />
+      );
+    })}
+  </div>
+);
+
 export const HamburgerMenu: React.FC = () => {
   const [open, setOpen] = useState(false);
   const { game, resetGame } = useGameStore();
   const opts = game.options;
   const st = useSettings();
+  const rivalId = resolveRival(st.colorMain, st.colorRival);
 
   function update(patch: Partial<typeof opts>) {
     resetGame({ ...opts, ...patch });
   }
 
-  const lines = { width: 22, height: 2, background: P, borderRadius: 1, boxShadow: `0 0 6px ${P}` };
+  const bar: React.CSSProperties = { width: 18, height: 2, background: 'var(--main)', borderRadius: 1 };
 
   return (
     <>
-      {/* Hamburger button */}
       <button
         onClick={() => setOpen(o => !o)}
+        title="Ajustes"
+        aria-label="Ajustes"
         style={{
-          background: 'none',
-          border: `1px solid ${open ? P : PD}`,
-          borderRadius: 4,
-          cursor: 'pointer',
-          padding: '6px 8px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-          boxShadow: open ? `0 0 10px ${P}` : 'none',
-          transition: 'all 0.15s',
+          width: 36, height: 36, minWidth: 36, minHeight: 36, borderRadius: 6, cursor: 'pointer', flexShrink: 0,
+          border: `1px solid ${open ? 'var(--main)' : 'var(--line)'}`, background: open ? mix('var(--main)', 12) : 'transparent',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
         }}
-        title="Opciones"
       >
-        <div style={{
-          ...lines,
-          transform: open ? 'rotate(45deg) translate(4px, 4px)' : 'none',
-          transition: 'transform 0.2s',
-        }} />
-        <div style={{
-          ...lines,
-          opacity: open ? 0 : 1,
-          transition: 'opacity 0.2s',
-        }} />
-        <div style={{
-          ...lines,
-          transform: open ? 'rotate(-45deg) translate(4px, -4px)' : 'none',
-          transition: 'transform 0.2s',
-        }} />
+        <div style={{ ...bar, transform: open ? 'translateY(6px) rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
+        <div style={{ ...bar, opacity: open ? 0 : 1, transition: 'opacity 0.2s' }} />
+        <div style={{ ...bar, transform: open ? 'translateY(-6px) rotate(-45deg)' : 'none', transition: 'transform 0.2s' }} />
       </button>
 
-      {/* Backdrop */}
       {open && (
-        <div
-          onClick={() => setOpen(false)}
-          style={{
-            position: 'fixed', inset: 0,
-            zIndex: 10000,
-            background: 'rgba(0,0,0,0.5)',
-          }}
-        />
+        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.55)' }} />
       )}
 
-      {/* Drawer */}
       <div style={{
-        position: 'fixed',
-        top: 0, right: 0,
-        height: '100vh',
-        width: 'min(320px, 92vw)',
-        background: BG,
-        borderLeft: `1px solid ${PD}`,
-        boxShadow: open ? `-4px 0 40px rgba(0,255,100,0.15)` : 'none',
-        zIndex: 10001,
+        position: 'fixed', top: 0, right: 0, height: '100dvh', width: 'min(340px, 92vw)',
+        background: 'var(--bg)', borderLeft: '1px solid var(--line)', zIndex: 10001,
         transform: open ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
-        padding: '20px 24px',
-        overflowY: 'auto',
+        padding: '18px 22px 28px', overflowY: 'auto',
+        visibility: open ? 'visible' : 'hidden',
       }}>
-        {/* Title */}
-        <div style={{
-          fontSize: 11, letterSpacing: 4, color: '#00aa44',
-          textTransform: 'uppercase', marginBottom: 4,
-        }}>
-          ⚙ SISTEMA
-        </div>
-        <div style={{
-          fontSize: 18, fontWeight: 700, color: P,
-          textShadow: `0 0 10px ${P}`,
-          marginBottom: 28,
-          letterSpacing: 2,
-        }}>
-          CONFIGURACIÓN
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--main)' }}>Ajustes</div>
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Cerrar ajustes"
+            style={{ background: 'none', border: 'none', color: 'var(--main-soft)', fontSize: 22, cursor: 'pointer' }}
+          >×</button>
         </div>
 
-        <div style={{ height: 1, background: PD, marginBottom: 24, opacity: 0.5 }} />
+        {CPU_AVAILABLE && (
+          <>
+            <Section>Partida</Section>
+            <Seg
+              value={st.vsCpu ? 'cpu' : '2p'}
+              options={[{ value: '2p', label: '2 jugadores' }, { value: 'cpu', label: '1 contra la CPU' }]}
+              onChange={v => { st.set({ vsCpu: v === 'cpu' }); resetGame(opts); }}
+            />
+            {st.vsCpu && (
+              <>
+                <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 6 }}>Nivel de la CPU</div>
+                <Seg
+                  value={String(st.cpuLevel)}
+                  options={CPU_LEVELS.map(l => ({ value: String(l.level), label: String(l.level) }))}
+                  onChange={v => st.set({ cpuLevel: Number(v) as 1 | 2 | 3 | 4 | 5 })}
+                />
+                <div style={{ fontSize: 13, color: 'var(--main)', marginTop: -6 }}>{CPU_LEVELS[st.cpuLevel - 1].name}</div>
+                <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
+                  {CPU_LEVELS[st.cpuLevel - 1].blurb}. Vos jugás como J.A y la CPU como J.B. Cambiar de modo empieza una partida nueva.
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        <Section>Colores</Section>
+        <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 8 }}>Color general (y jugador A)</div>
+        <Swatches value={st.colorMain} onPick={id => st.set({ colorMain: id })} />
+        <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 8 }}>Color del rival (jugador B)</div>
+        <Swatches
+          value={st.colorRival === 'auto' ? rivalId : st.colorRival}
+          disabledId={st.colorMain}
+          onPick={id => st.set({ colorRival: id })}
+          extra={
+            <button
+              onClick={() => st.set({ colorRival: 'auto' })}
+              style={{
+                padding: '0 10px', height: 30, borderRadius: 15, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: st.colorRival === 'auto' ? mix('var(--main)', 20) : 'transparent',
+                color: st.colorRival === 'auto' ? 'var(--main)' : 'var(--main-soft)',
+                border: `1px solid ${st.colorRival === 'auto' ? 'var(--main)' : 'var(--line)'}`,
+              }}
+            >
+              Auto
+            </button>
+          }
+        />
+        <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
+          El rival siempre usa un color distinto al general. En Auto se elige el contraste: verde con ámbar, por ejemplo.
+        </div>
 
         <Section>Radar</Section>
-        <Toggle label="RADAR" value={st.radarOn} onChange={v => st.set({ radarOn: v })} desc="Barrido giratorio sobre el tablero" />
-        <Slider label="VELOCIDAD" value={st.radarSpeed} min={0.2} max={5} step={0.1} disabled={!st.radarOn}
+        <Toggle label="Radar" value={st.radarOn} onChange={v => st.set({ radarOn: v })} desc="Barrido giratorio sobre el tablero." />
+        <Slider label="Velocidad" value={st.radarSpeed} min={0.2} max={5} step={0.1} disabled={!st.radarOn}
           format={v => v.toFixed(1) + 'x'} onChange={v => st.set({ radarSpeed: v })} />
-        <Slider label="INTENSIDAD" value={st.radarIntensity} min={0.2} max={2} step={0.1} disabled={!st.radarOn}
+        <Slider label="Intensidad" value={st.radarIntensity} min={0.2} max={2} step={0.1} disabled={!st.radarOn}
           format={v => Math.round(v * 100) + '%'} onChange={v => st.set({ radarIntensity: v })} />
 
-        <Section>Pantalla CRT</Section>
-        <Toggle label="GLITCHES" value={st.glitchOn} onChange={v => st.set({ glitchOn: v })} desc="Cortes horizontales y aberración de color" />
-        <Slider label="FRECUENCIA" value={st.glitchRate} min={0.3} max={4} step={0.1} disabled={!st.glitchOn}
-          format={v => v.toFixed(1) + 'x'} onChange={v => st.set({ glitchRate: v })} />
-        <Toggle label="PARPADEO" value={st.flickerOn} onChange={v => st.set({ flickerOn: v })} desc="Variación de brillo del tubo" />
-
         <Section>Tablero</Section>
-        <Slider label="ZOOM" value={st.zoom} min={ZOOM_MIN} max={ZOOM_MAX} step={0.05}
+        <Slider label="Zoom" value={st.zoom} min={ZOOM_MIN} max={ZOOM_MAX} step={0.05}
           format={v => Math.round(v * 100) + '%'} onChange={v => st.set({ zoom: v })} />
         <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
           <MiniBtn label="−" onClick={() => st.zoomBy(1 / 1.2)} />
-          <MiniBtn label="AJUSTAR" onClick={st.resetZoom} />
+          <MiniBtn label="Ajustar" onClick={st.resetZoom} />
           <MiniBtn label="+" onClick={() => st.zoomBy(1.2)} />
         </div>
-        <div style={{ fontSize: 13, letterSpacing: 1, color: '#00aa44', marginBottom: 6 }}>ROTACIÓN</div>
+        <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
+          100% ocupa el máximo de pantalla; más grande activa el scroll. También podés usar Ctrl + rueda o pellizcar con dos dedos.
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 6 }}>Rotación</div>
         <Seg
           value={String(st.rotation)}
-          options={[{ value: 'auto', label: 'AUTO' }, { value: '0', label: '0°' }, { value: '90', label: '90°' }, { value: '180', label: '180°' }, { value: '270', label: '270°' }]}
+          options={[{ value: 'auto', label: 'Auto' }, { value: '0', label: '0°' }, { value: '90', label: '90°' }, { value: '180', label: '180°' }, { value: '270', label: '270°' }]}
           onChange={v => st.set({ rotation: v === 'auto' ? 'auto' : (Number(v) as 0 | 90 | 180 | 270) })}
         />
-        <div style={{ fontSize: 10, color: '#005522', marginBottom: 18, letterSpacing: 0.5 }}>
-          100% ocupa el máximo de pantalla. Más grande activa el scroll. Ctrl + rueda o pellizco también hacen zoom. AUTO rota el tablero cuando la pantalla es vertical.
+        <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
+          Auto gira el tablero cuando la pantalla es vertical para aprovechar más espacio.
+        </div>
+        <Toggle label="Panel lateral visible" value={!st.railCollapsed} onChange={v => st.set({ railCollapsed: !v })}
+          desc="Ocultalo para dar todo el ancho al tablero." />
+
+        <Section>Fichas</Section>
+        <Toggle label="Ampliar ficha con doble clic" value={st.pieceZoomOn} onChange={v => st.set({ pieceZoomOn: v })}
+          desc="Doble clic (o doble toque) abre la ficha ampliada en el centro. Un clic fuera la cierra." />
+        <Slider label="Tamaño de la ficha ampliada" value={st.pieceZoomSize} min={160} max={560} step={20} disabled={!st.pieceZoomOn}
+          format={v => v + ' px'} onChange={v => st.set({ pieceZoomSize: v })} />
+        <Toggle label="Mostrar alcances al tocar" value={st.showRanges} onChange={v => st.set({ showRanges: v })}
+          desc="Un clic en una ficha marca su alcance de movimiento y de tiro." />
+
+        <Section>Efectos de pantalla (opcionales)</Section>
+        <Toggle label="Efecto CRT" value={st.crtOn} onChange={v => st.set({ crtOn: v })} desc="Líneas de barrido y viñeta, como un monitor antiguo." />
+        <Toggle label="Glitches" value={st.glitchOn} onChange={v => st.set({ glitchOn: v })} desc="Cortes horizontales y aberración de color." />
+        <Slider label="Frecuencia de glitches" value={st.glitchRate} min={0.3} max={4} step={0.1} disabled={!st.glitchOn}
+          format={v => v.toFixed(1) + 'x'} onChange={v => st.set({ glitchRate: v })} />
+        <Toggle label="Parpadeo" value={st.flickerOn} onChange={v => st.set({ flickerOn: v })} desc="Variación de brillo de la pantalla." />
+
+        <Section>Reglas de la partida</Section>
+        <Toggle label="Dados" value={opts.useDice} onChange={v => update({ useDice: v })}
+          desc="Variante: el movimiento se determina con dados en vez de fichas de número." />
+        <Toggle label="Alcance real" value={opts.advancedActualRange} onChange={v => update({ advancedActualRange: v })}
+          desc="Comparar el alcance actual (con avería) en vez del nominal." />
+        <Toggle label="Islas aleatorias" value={opts.randomIslands} onChange={v => update({ randomIslands: v })}
+          desc="Genera islas simétricas al azar al inicio." />
+        <Toggle label="PIN de traspaso" value={opts.presentation.handoffPin}
+          onChange={v => update({ presentation: { ...opts.presentation, handoffPin: v } })}
+          desc="Pide un PIN para confirmar el cambio de turno (para que el rival no espíe)." />
+        <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 14, lineHeight: 1.4 }}>
+          Cambiar una regla empieza una partida nueva.
         </div>
 
-        {/* Options */}
-        <Section>Modo de turno</Section>
-        <Toggle
-          label="DADOS"
-          value={opts.useDice}
-          onChange={v => update({ useDice: v })}
-          desc="Variante: el movimiento se determina con dados en vez de fichas-número"
-        />
-
-        <Section>Combate</Section>
-        <Toggle
-          label="ALCANCE REAL"
-          value={opts.advancedActualRange}
-          onChange={v => update({ advancedActualRange: v })}
-          desc="Comparar alcance actual (con avería) en vez de nominal"
-        />
-
-        <Section>Mapa</Section>
-        <Toggle
-          label="ISLAS ALEATORIAS"
-          value={opts.randomIslands}
-          onChange={v => update({ randomIslands: v })}
-          desc="Genera islas simétricas aleatoriamente al inicio"
-        />
-
-        <Section>Seguridad</Section>
-        <Toggle
-          label="PIN TRASPASO"
-          value={opts.presentation.handoffPin}
-          onChange={v => update({ presentation: { ...opts.presentation, handoffPin: v } })}
-          desc="Requiere PIN para confirmar cambio de turno (anti-espía)"
-        />
-
-        <div style={{ height: 1, background: PD, marginBottom: 24, opacity: 0.5 }} />
-
-        {/* Nueva partida */}
         <button
           onClick={() => { resetGame(opts); setOpen(false); }}
           style={{
-            width: '100%',
-            padding: '10px',
-            border: `1px solid ${P}`,
-            borderRadius: 4,
-            background: 'transparent',
-            color: P,
-            cursor: 'pointer',
-            fontSize: 12,
-            letterSpacing: 2,
-            textTransform: 'uppercase',
-            boxShadow: `0 0 8px rgba(0,255,100,0.2)`,
-            transition: 'all 0.15s',
-            marginBottom: 10,
+            width: '100%', padding: '12px', borderRadius: 4, cursor: 'pointer', marginTop: 4,
+            border: '1px solid var(--main)', background: mix('var(--main)', 14), color: 'var(--main)',
+            fontSize: 14, fontWeight: 700,
           }}
-          onMouseEnter={e => e.currentTarget.style.background = PD}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
-          ↺ NUEVA PARTIDA
+          Nueva partida
         </button>
-
-        {/* Version */}
-        <div style={{ fontSize: 9, color: '#003311', textAlign: 'center', marginTop: 24, letterSpacing: 2 }}>
-          AJEDREZ NAVAL v1.0<br />
-          SYS:ONLINE — RADAR:ACTIVO
-        </div>
       </div>
     </>
   );

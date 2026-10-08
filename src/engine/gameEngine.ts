@@ -75,6 +75,23 @@ export function placePieceInSetup(
   return { ...state, pieces: newPieces, setupPlacedPieceIds: newPlaced };
 }
 
+export function unplacePieceInSetup(
+  state: GameState,
+  pieceId: string,
+): GameState | string {
+  if (state.phase !== 'setup' && state.phase !== 'setupB') return 'Not in setup phase';
+
+  const piece = state.pieces.find(p => p.id === pieceId);
+  if (!piece) return 'Piece not found';
+  if (piece.owner !== state.setupPlayer) return 'Not your piece';
+
+  return {
+    ...state,
+    pieces: state.pieces.map(p => p.id === pieceId ? { ...p, pos: null } : p),
+    setupPlacedPieceIds: state.setupPlacedPieceIds.filter(id => id !== pieceId),
+  };
+}
+
 export function finishSetup(state: GameState): GameState | string {
   const player = state.setupPlayer;
   const myPieces = state.pieces.filter(p => p.owner === player);
