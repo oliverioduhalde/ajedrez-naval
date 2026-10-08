@@ -1,6 +1,12 @@
 import React from 'react';
+import { useSettings } from '../../store/settingsStore';
 
 export const CRTOverlay: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const glitchOn = useSettings(s => s.glitchOn);
+  const glitchRate = useSettings(s => s.glitchRate);
+  const flickerOn = useSettings(s => s.flickerOn);
+  const period = 12 / glitchRate;
+
   return (
     <div style={{
       position: 'relative',
@@ -8,11 +14,13 @@ export const CRTOverlay: React.FC<{ children: React.ReactNode }> = ({ children }
       height: '100%',
       overflow: 'hidden',
       background: '#000a02',
+      animation: flickerOn ? 'crt-flicker 8s infinite, flicker-fast 0.15s infinite' : 'none',
     }}>
       <div style={{
         position: 'relative',
         width: '100%',
         height: '100%',
+        animation: glitchOn ? `glitch-h ${period}s infinite, glitch-rgb ${period}s infinite` : 'none',
       }}>
         {children}
       </div>

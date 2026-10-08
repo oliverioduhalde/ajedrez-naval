@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { useSettings, ZOOM_MAX, ZOOM_MIN } from '../../store/settingsStore';
 
 const P = '#00ff66';
 const PD = '#004d1a';
@@ -42,16 +43,79 @@ const Toggle: React.FC<{
   </div>
 );
 
+
+const Section: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <>
+    <div style={{ height: 1, background: PD, marginBottom: 20, opacity: 0.3 }} />
+    <div style={{ fontSize: 10, color: '#005522', letterSpacing: 3, marginBottom: 16, textTransform: 'uppercase' }}>
+      {children}
+    </div>
+  </>
+);
+
+const Slider: React.FC<{
+  label: string; value: number; min: number; max: number; step: number;
+  format: (v: number) => string; onChange: (v: number) => void; disabled?: boolean;
+}> = ({ label, value, min, max, step, format, onChange, disabled }) => (
+  <div style={{ marginBottom: 18, opacity: disabled ? 0.35 : 1 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, letterSpacing: 1, color: '#00aa44' }}>
+      <span>{label}</span>
+      <span style={{ color: P }}>{format(value)}</span>
+    </div>
+    <input
+      type="range" min={min} max={max} step={step} value={value} disabled={disabled}
+      onChange={e => onChange(Number(e.target.value))}
+      style={{ width: '100%', marginTop: 6, accentColor: P, cursor: disabled ? 'not-allowed' : 'pointer' }}
+    />
+  </div>
+);
+
+const MiniBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      flex: 1, padding: '6px 0', background: 'transparent', cursor: 'pointer',
+      border: `1px solid ${PD}`, color: '#00cc44', fontSize: 11, letterSpacing: 1,
+    }}
+  >
+    {label}
+  </button>
+);
+
+const Seg: React.FC<{
+  options: { value: string; label: string }[]; value: string; onChange: (v: string) => void;
+}> = ({ options, value, onChange }) => (
+  <div style={{ display: 'flex', border: `1px solid ${PD}`, marginBottom: 18 }}>
+    {options.map((o, i) => (
+      <button
+        key={o.value}
+        onClick={() => onChange(o.value)}
+        style={{
+          flex: 1, padding: '7px 0', cursor: 'pointer',
+          background: o.value === value ? PD : 'transparent',
+          color: o.value === value ? P : '#00aa44',
+          border: 'none', borderLeft: i === 0 ? 'none' : `1px solid ${PD}`,
+          fontSize: 11, letterSpacing: 1,
+          textShadow: o.value === value ? `0 0 6px ${P}` : 'none',
+        }}
+      >
+        {o.label}
+      </button>
+    ))}
+  </div>
+);
+
 export const HamburgerMenu: React.FC = () => {
   const [open, setOpen] = useState(false);
   const { game, resetGame } = useGameStore();
   const opts = game.options;
+  const st = useSettings();
 
   function update(patch: Partial<typeof opts>) {
     resetGame({ ...opts, ...patch });
   }
 
-  const lines = { width: 22, height: 2, bg: P, borderRadius: 1 };
+  const lines = { width: 22, height: 2, background: P, borderRadius: 1, boxShadow: `0 0 6px ${P}` };
 
   return (
     <>
@@ -106,7 +170,7 @@ export const HamburgerMenu: React.FC = () => {
         position: 'fixed',
         top: 0, right: 0,
         height: '100vh',
-        width: 300,
+        width: 'min(320px, 92vw)',
         background: BG,
         borderLeft: `1px solid ${PD}`,
         boxShadow: open ? `-4px 0 40px rgba(0,255,100,0.15)` : 'none',
@@ -134,10 +198,39 @@ export const HamburgerMenu: React.FC = () => {
 
         <div style={{ height: 1, background: PD, marginBottom: 24, opacity: 0.5 }} />
 
-        {/* Options */}
-        <div style={{ fontSize: 10, color: '#005522', letterSpacing: 3, marginBottom: 16, textTransform: 'uppercase' }}>
-          Modo de turno
+        <Section>Radar</Section>
+        <Toggle label="RADAR" value={st.radarOn} onChange={v => st.set({ radarOn: v })} desc="Barrido giratorio sobre el tablero" />
+        <Slider label="VELOCIDAD" value={st.radarSpeed} min={0.2} max={5} step={0.1} disabled={!st.radarOn}
+          format={v => v.toFixed(1) + 'x'} onChange={v => st.set({ radarSpeed: v })} />
+        <Slider label="INTENSIDAD" value={st.radarIntensity} min={0.2} max={2} step={0.1} disabled={!st.radarOn}
+          format={v => Math.round(v * 100) + '%'} onChange={v => st.set({ radarIntensity: v })} />
+
+        <Section>Pantalla CRT</Section>
+        <Toggle label="GLITCHES" value={st.glitchOn} onChange={v => st.set({ glitchOn: v })} desc="Cortes horizontales y aberración de color" />
+        <Slider label="FRECUENCIA" value={st.glitchRate} min={0.3} max={4} step={0.1} disabled={!st.glitchOn}
+          format={v => v.toFixed(1) + 'x'} onChange={v => st.set({ glitchRate: v })} />
+        <Toggle label="PARPADEO" value={st.flickerOn} onChange={v => st.set({ flickerOn: v })} desc="Variación de brillo del tubo" />
+
+        <Section>Tablero</Section>
+        <Slider label="ZOOM" value={st.zoom} min={ZOOM_MIN} max={ZOOM_MAX} step={0.05}
+          format={v => Math.round(v * 100) + '%'} onChange={v => st.set({ zoom: v })} />
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <MiniBtn label="−" onClick={() => st.zoomBy(1 / 1.2)} />
+          <MiniBtn label="AJUSTAR" onClick={st.resetZoom} />
+          <MiniBtn label="+" onClick={() => st.zoomBy(1.2)} />
         </div>
+        <div style={{ fontSize: 13, letterSpacing: 1, color: '#00aa44', marginBottom: 6 }}>ROTACIÓN</div>
+        <Seg
+          value={String(st.rotation)}
+          options={[{ value: 'auto', label: 'AUTO' }, { value: '0', label: '0°' }, { value: '90', label: '90°' }, { value: '180', label: '180°' }, { value: '270', label: '270°' }]}
+          onChange={v => st.set({ rotation: v === 'auto' ? 'auto' : (Number(v) as 0 | 90 | 180 | 270) })}
+        />
+        <div style={{ fontSize: 10, color: '#005522', marginBottom: 18, letterSpacing: 0.5 }}>
+          100% ocupa el máximo de pantalla. Más grande activa el scroll. Ctrl + rueda o pellizco también hacen zoom. AUTO rota el tablero cuando la pantalla es vertical.
+        </div>
+
+        {/* Options */}
+        <Section>Modo de turno</Section>
         <Toggle
           label="DADOS"
           value={opts.useDice}
@@ -145,10 +238,7 @@ export const HamburgerMenu: React.FC = () => {
           desc="Variante: el movimiento se determina con dados en vez de fichas-número"
         />
 
-        <div style={{ height: 1, background: PD, marginBottom: 20, opacity: 0.3 }} />
-        <div style={{ fontSize: 10, color: '#005522', letterSpacing: 3, marginBottom: 16, textTransform: 'uppercase' }}>
-          Combate
-        </div>
+        <Section>Combate</Section>
         <Toggle
           label="ALCANCE REAL"
           value={opts.advancedActualRange}
@@ -156,10 +246,7 @@ export const HamburgerMenu: React.FC = () => {
           desc="Comparar alcance actual (con avería) en vez de nominal"
         />
 
-        <div style={{ height: 1, background: PD, marginBottom: 20, opacity: 0.3 }} />
-        <div style={{ fontSize: 10, color: '#005522', letterSpacing: 3, marginBottom: 16, textTransform: 'uppercase' }}>
-          Tablero
-        </div>
+        <Section>Mapa</Section>
         <Toggle
           label="ISLAS ALEATORIAS"
           value={opts.randomIslands}
@@ -167,10 +254,7 @@ export const HamburgerMenu: React.FC = () => {
           desc="Genera islas simétricas aleatoriamente al inicio"
         />
 
-        <div style={{ height: 1, background: PD, marginBottom: 20, opacity: 0.3 }} />
-        <div style={{ fontSize: 10, color: '#005522', letterSpacing: 3, marginBottom: 16, textTransform: 'uppercase' }}>
-          Seguridad
-        </div>
+        <Section>Seguridad</Section>
         <Toggle
           label="PIN TRASPASO"
           value={opts.presentation.handoffPin}

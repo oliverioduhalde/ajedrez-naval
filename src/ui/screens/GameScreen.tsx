@@ -3,12 +3,15 @@ import { useGameStore } from '../../store/gameStore';
 import { Board } from '../components/Board';
 import { ActionPanel } from '../components/ActionPanel';
 import { GameLog } from '../components/GameLog';
+import { SystemHeader } from '../components/SystemHeader';
+import { useStackedLayout } from '../hooks/useStackedLayout';
 
 const P = '#00ff66';
 const AM = '#ffaa00';
 
 export const GameScreen: React.FC = () => {
   const { game, resetGame } = useGameStore();
+  const stacked = useStackedLayout();
   const viewAs = game.turn;
 
   if (game.phase === 'finished') {
@@ -17,8 +20,11 @@ export const GameScreen: React.FC = () => {
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', height: '100%', gap: 24,
+        justifyContent: 'center', height: '100%', gap: 24, overflowY: 'auto',
       }}>
+        <div style={{ width: 'min(420px, 100%)' }}>
+          <SystemHeader variant="rail" />
+        </div>
         <div style={{
           border: `1px solid ${color}`,
           background: 'rgba(0,10,2,0.96)',
@@ -77,20 +83,20 @@ export const GameScreen: React.FC = () => {
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'row', gap: 12,
+      display: 'flex', flexDirection: stacked ? 'column' : 'row', gap: 8,
       height: '100%', overflow: 'hidden',
     }}>
-      {/* Board — takes all remaining width */}
       <Board viewAs={viewAs} />
 
-      {/* Right column: panel + log */}
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 8,
-        justifyContent: 'flex-start',
-        overflow: 'hidden',
+        width: stacked ? '100%' : 'clamp(200px, 24vw, 260px)', flexShrink: 0,
+        maxHeight: stacked ? '42%' : undefined,
+        overflowY: 'auto',
       }}>
+        <SystemHeader variant="rail" />
         <ActionPanel viewAs={viewAs} />
-        <GameLog />
+        <GameLog fill />
       </div>
     </div>
   );

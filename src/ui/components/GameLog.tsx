@@ -17,7 +17,7 @@ function lineColor(line: string): string {
   return '#006622';
 }
 
-export const GameLog: React.FC = () => {
+export const GameLog: React.FC<{ fill?: boolean }> = ({ fill }) => {
   const { game } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [game.log]);
@@ -26,7 +26,9 @@ export const GameLog: React.FC = () => {
     <div style={{
       border: '1px solid #003311',
       background: 'rgba(0,15,5,0.85)',
-      flexShrink: 0,
+      flex: fill ? '1 1 auto' : '0 0 auto',
+      minHeight: fill ? 120 : undefined,
+      display: 'flex', flexDirection: 'column',
       position: 'relative',
     }}>
       {/* corner ticks */}
@@ -45,7 +47,10 @@ export const GameLog: React.FC = () => {
       <div style={{ padding: '4px 8px', fontSize: 7, letterSpacing: 2, color: '#005522', borderBottom: '1px solid #002210' }}>
         REGISTRO DE COMBATE
       </div>
-      <div ref={ref} style={{ height: 90, overflowY: 'auto', padding: '4px 8px' }}>
+      <div ref={ref} style={{
+        height: fill ? undefined : 90, flex: fill ? '1 1 0' : undefined, minHeight: 0,
+        overflowY: 'auto', padding: '4px 8px',
+      }}>
         {game.log.length === 0
           ? <div style={{ color: '#002d12', fontSize: 9, marginTop: 4 }}>SIN ACCIONES...</div>
           : game.log.map((line, i) => (

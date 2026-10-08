@@ -19,13 +19,11 @@ export const ActionPanel: React.FC<Props> = ({ viewAs }) => {
 
   return (
     <div style={{
-      width: 190,
+      width: '100%',
       flexShrink: 0,
       display: 'flex',
       flexDirection: 'column',
       gap: 8,
-      overflowY: 'auto',
-      paddingRight: 2,
     }}>
 
       {/* Error */}
