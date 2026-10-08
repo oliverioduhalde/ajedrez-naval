@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { useCpuStatus } from '../../store/cpuStatus';
 import { useSettings } from '../../store/settingsStore';
 import { Board } from '../components/Board';
 import { ActionPanel } from '../components/ActionPanel';
@@ -30,6 +31,7 @@ const RailContent: React.FC<{ viewAs: 'A' | 'B'; onHide: () => void; hideLabel: 
 export const GameScreen: React.FC = () => {
   const { game, resetGame, doEndTurn, clearError } = useGameStore();
   const errorMessage = useGameStore(s => s.ui.errorMessage);
+  const cpuThinking = useCpuStatus(s => s.thinking);
   const stacked = useStackedLayout();
   const narrow = useNarrowScreen();
   const short = useShortScreen();
@@ -60,9 +62,11 @@ export const GameScreen: React.FC = () => {
           <div style={{ fontSize: 12, letterSpacing: 2, color: 'var(--main-mute)', marginBottom: 10, textTransform: 'uppercase' }}>
             Fin de la partida
           </div>
-          <div style={{ fontSize: 30, fontWeight: 800, color }}>Gana el jugador {winner}</div>
+          <div style={{ fontSize: 30, fontWeight: 800, color }}>
+            {vsCpu ? (winner === 'A' ? '¡Ganaste!' : 'Gana la CPU') : `Gana el jugador ${winner}`}
+          </div>
           <div style={{ fontSize: 13, color: 'var(--main-soft)', marginTop: 8 }}>
-            Una de sus piezas llegó a la zona rival.
+            {vsCpu && winner === 'A' ? 'Una de tus piezas llegó a la zona rival.' : vsCpu ? 'Una de sus piezas llegó a tu zona.' : 'Una de sus piezas llegó a la zona rival.'}
           </div>
           <button
             onClick={() => resetGame()}
@@ -145,6 +149,14 @@ export const GameScreen: React.FC = () => {
           }} title={`Turno del jugador ${game.turn}`}>
             {game.turn}
           </div>
+          {vsCpu && game.phase === 'play' && game.turn === 'B' && (
+            <div
+              style={{ fontSize: 11, color: 'var(--rv-soft)', textAlign: 'center', lineHeight: 1.2, flexShrink: 0, animation: cpuThinking ? 'pulse 1s infinite' : 'none' }}
+              title="Turno de la CPU"
+            >
+              CPU<br />{cpuThinking ? 'piensa…' : 'juega…'}
+            </div>
+          )}
           {budget !== null && (
             <div style={{ fontSize: 11, color: 'var(--main-soft)', textAlign: 'center', lineHeight: 1.2, flexShrink: 0 }} title="Movimiento restante">
               mov.<br /><b style={{ fontSize: 15, color: 'var(--main)' }}>{budget}</b>

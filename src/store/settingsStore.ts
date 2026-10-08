@@ -3,7 +3,7 @@ import type { CpuLevel } from '../ai/types';
 import type { Rot } from '../ui/boardRotation';
 import type { PaletteId } from '../ui/theme';
 
-export const CPU_AVAILABLE = false;
+export const CPU_AVAILABLE = true;
 
 export interface Settings {
   radarOn: boolean;

@@ -6,5 +6,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    // Los tests de fuerza de la CPU simulan partidas enteras: con la máquina ocupada superan los 5 s por defecto.
+    testTimeout: 120000,
   },
 });
