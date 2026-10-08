@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { CpuLevel } from '../ai/types';
 import type { Rot } from '../ui/boardRotation';
 import type { PaletteId } from '../ui/theme';
+import { isFactionId, otherFaction, type FactionId } from '../config/factions';
 
 export const CPU_AVAILABLE = true;
 
@@ -19,6 +20,9 @@ export interface Settings {
   colorRival: PaletteId | 'auto';
   /** Tercer color: el del tablero (mar, islas, grilla, radar). Nunca coincide con el de las fichas. */
   colorBoard: PaletteId;
+  /** Facción de cada bando: define el color de sus fichas y el himno que suena al ganar. */
+  factionA: FactionId;
+  factionB: FactionId;
   railCollapsed: boolean;
   pieceZoomOn: boolean;
   pieceZoomSize: number;
@@ -57,6 +61,8 @@ const DEFAULTS: Settings = {
   colorMain: 'verde',
   colorRival: 'auto',
   colorBoard: 'mar',
+  factionA: 'usa',
+  factionB: 'japon',
   railCollapsed: false,
   pieceZoomOn: true,
   pieceZoomSize: 300,
@@ -84,6 +90,9 @@ function load(): Settings {
     if (!PALETTE_IDS.includes(merged.colorMain)) merged.colorMain = 'verde';
     if (merged.colorRival !== 'auto' && !PALETTE_IDS.includes(merged.colorRival)) merged.colorRival = 'auto';
     if (!PALETTE_IDS.includes(merged.colorBoard)) merged.colorBoard = 'mar';
+    if (!isFactionId(merged.factionA)) merged.factionA = DEFAULTS.factionA;
+    if (!isFactionId(merged.factionB)) merged.factionB = DEFAULTS.factionB;
+    if (merged.factionB === merged.factionA) merged.factionB = otherFaction(merged.factionA);
     merged.soundVolume = clamp(Number(p.soundVolume ?? 0.8), 0, 1);
     if (!CPU_AVAILABLE) merged.vsCpu = false;
     return merged;

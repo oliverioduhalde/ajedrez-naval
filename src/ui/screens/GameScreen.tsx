@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { useCpuStatus } from '../../store/cpuStatus';
 import { useSettings } from '../../store/settingsStore';
+import { factionOf } from '../../config/factions';
+import { useVictoryAnthem } from '../hooks/useVictoryAnthem';
 import { Board } from '../components/Board';
 import { ActionPanel } from '../components/ActionPanel';
 import { GameLog } from '../components/GameLog';
@@ -43,6 +45,9 @@ export const GameScreen: React.FC = () => {
   const collapsed = useSettings(s => s.railCollapsed);
   const setSetting = useSettings(s => s.set);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const factionA = useSettings(s => s.factionA);
+  const factionB = useSettings(s => s.factionB);
+  useVictoryAnthem();
 
   // Los rechazos del motor se avisan sobre el tablero y se apagan solos.
   useEffect(() => {
@@ -61,6 +66,7 @@ export const GameScreen: React.FC = () => {
   if (game.phase === 'finished') {
     const winner = game.winner!;
     const color = winner === 'A' ? 'var(--main)' : 'var(--rv)';
+    const wf = factionOf(winner === 'A' ? factionA : factionB);
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -73,6 +79,10 @@ export const GameScreen: React.FC = () => {
           </div>
           <div style={{ fontSize: 30, fontWeight: 800, color }}>
             {vsCpu ? (winner === 'A' ? '¡Ganaste!' : 'Gana la CPU') : `Gana el jugador ${winner}`}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10 }}>
+            <span style={{ width: 46, height: 30, borderRadius: 3, background: wf.flag, border: `1px solid ${wf.edge}` }} />
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{wf.name}</span>
           </div>
           <div style={{ fontSize: 13, color: 'var(--main-soft)', marginTop: 8 }}>
             {vsCpu && winner === 'A' ? 'Una de tus piezas llegó a la zona rival.' : vsCpu ? 'Una de sus piezas llegó a tu zona.' : 'Una de sus piezas llegó a la zona rival.'}

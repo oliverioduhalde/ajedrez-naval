@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useSettings } from '../store/settingsStore';
+import { factionOf, type FactionId } from '../config/factions';
 
 export type PaletteId = 'verde' | 'ambar' | 'cian' | 'azul' | 'violeta' | 'rojo' | 'blanco' | 'mar';
 
@@ -87,18 +88,19 @@ export function paletteSwatch(id: PaletteId): string {
   return tonesOf(id).main;
 }
 
+/** Los colores de cada bando salen de la facción que eligió. */
 export function useSideTones(): { A: Tones; B: Tones } {
-  const main = useSettings(s => s.colorMain);
-  const rival = useSettings(s => s.colorRival);
-  return useMemo(() => ({ A: tonesOf(main), B: tonesOf(resolveRival(main, rival)) }), [main, rival]);
+  const a = useSettings(s => s.factionA);
+  const b = useSettings(s => s.factionB);
+  return useMemo(() => ({ A: factionOf(a).tones, B: factionOf(b).tones }), [a, b]);
 }
 
 /** Cambia cuando cambia cualquier color: sirve para repintar lo que lee las variables CSS (canvas). */
 export function useThemeKey(): string {
-  const main = useSettings(s => s.colorMain);
-  const rival = useSettings(s => s.colorRival);
+  const a = useSettings(s => s.factionA);
+  const b = useSettings(s => s.factionB);
   const board = useSettings(s => s.colorBoard);
-  return `${main}|${rival}|${board}`;
+  return `${a}|${b}|${board}`;
 }
 
 function setSide(root: CSSStyleDeclaration, prefix: string, t: Tones) {
@@ -110,13 +112,14 @@ function setSide(root: CSSStyleDeclaration, prefix: string, t: Tones) {
   root.setProperty(`--${prefix}-rgb`, t.rgb);
 }
 
-export function applyTheme(main: PaletteId, rival: PaletteId | 'auto', board: PaletteId) {
+export function applyTheme(a: FactionId, b: FactionId, board: PaletteId) {
   const root = document.documentElement.style;
-  const m = def(main);
-  const rv = resolveRival(main, rival);
-  const sea = resolveBoard(main, rv, board);
-  setSide(root, 'main', tonesOf(main));
-  setSide(root, 'rv', tonesOf(rv));
+  const fa = factionOf(a);
+  const fb = factionOf(b);
+  const m = def(fa.paletteId);
+  const sea = resolveBoard(fa.paletteId, fb.paletteId, board);
+  setSide(root, 'main', fa.tones);
+  setSide(root, 'rv', fb.tones);
   setSide(root, 'sea', tonesOf(sea));
   const seaDef = def(sea);
   root.setProperty('--sea-bg-rgb', rgbOf({ ...seaDef, sat: seaDef.sat * 0.85 }, 12));
@@ -132,12 +135,12 @@ export function applyTheme(main: PaletteId, rival: PaletteId | 'auto', board: Pa
 export function initTheme() {
   const sync = () => {
     const s = useSettings.getState();
-    applyTheme(s.colorMain, s.colorRival, s.colorBoard);
+    applyTheme(s.factionA, s.factionB, s.colorBoard);
   };
   sync();
   let last = '';
   useSettings.subscribe(s => {
-    const key = s.colorMain + '|' + s.colorRival + '|' + s.colorBoard;
+    const key = s.factionA + '|' + s.factionB + '|' + s.colorBoard;
     if (key !== last) {
       last = key;
       sync();

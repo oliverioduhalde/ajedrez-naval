@@ -5,7 +5,8 @@ import { canSeeIdentity } from '../../store/gameStore';
 import { getUnitIcon } from './PieceIcons';
 import { PIECE_NAMES } from '../messages';
 import { mix } from '../ui';
-import { useSideTones } from '../theme';
+import { useSettings } from '../../store/settingsStore';
+import { factionOf } from '../../config/factions';
 
 interface Props {
   piece: Piece;
@@ -20,15 +21,15 @@ interface Props {
 export const PieceToken: React.FC<Props> = ({
   piece, viewAs, selected, enlarge, targetable, cellSize, onClick,
 }) => {
-  const tones = useSideTones()[piece.owner];
+  const faction = factionOf(useSettings(s => (piece.owner === 'A' ? s.factionA : s.factionB)));
   const ownerVar = piece.owner === 'A' ? 'var(--main)' : 'var(--rv)';
   const visible = canSeeIdentity(piece, viewAs);
   const iconSize = Math.floor(cellSize * 0.55);
   const fontSize = Math.max(8, Math.floor(cellSize * 0.2));
   const accent = piece.damaged ? 'var(--warn)' : ownerVar;
-  const iconColor = piece.damaged ? '#ffb020' : tones.main;
+  const iconColor = piece.damaged ? '#ffb020' : faction.glyph;
 
-  const borderColor = selected ? 'var(--text)' : targetable ? 'var(--danger)' : piece.damaged ? 'var(--warn)' : mix(ownerVar, 55);
+  const borderColor = selected ? 'var(--text)' : targetable ? 'var(--danger)' : piece.damaged ? 'var(--warn)' : faction.edge;
 
   return (
     <div
@@ -42,13 +43,13 @@ export const PieceToken: React.FC<Props> = ({
         alignItems: 'center', justifyContent: 'center', gap: 1,
         cursor: 'pointer',
         background: selected
-          ? mix(ownerVar, 28)
+          ? faction.token(2)
           : targetable
           ? mix('var(--danger)', 18)
-          : mix(ownerVar, 12),
+          : faction.token(1),
         border: `${selected ? 2 : 1}px solid ${borderColor}`,
         borderRadius: 4,
-        boxShadow: selected ? `0 0 0 2px ${mix(ownerVar, 35)}` : 'none',
+        boxShadow: selected ? `0 0 0 2px ${mix(faction.edge, 45)}` : 'none',
         transform: `${piece.damaged ? 'rotate(90deg) ' : ''}${selected && enlarge ? 'scale(1.14)' : 'scale(1)'}`,
         transition: 'transform 0.15s ease, background 0.15s ease',
         zIndex: selected ? 3 : 1,
@@ -61,7 +62,9 @@ export const PieceToken: React.FC<Props> = ({
     >
       {visible ? (
         <>
-          {getUnitIcon(piece.type, iconSize, iconColor)}
+          <span style={{ display: 'flex', filter: faction.shadowGlyph ? 'drop-shadow(0 0 2px rgba(0,0,0,0.9))' : undefined }}>
+            {getUnitIcon(piece.type, iconSize, iconColor)}
+          </span>
           <span style={{
             fontSize, fontWeight: 700, color: accent, lineHeight: 1, letterSpacing: '0.3px',
           }}>

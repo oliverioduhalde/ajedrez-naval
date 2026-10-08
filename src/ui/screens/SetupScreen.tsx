@@ -11,6 +11,7 @@ import { useStackedLayout } from '../hooks/useStackedLayout';
 import { displayDims, mapCell, mapRect, mapSide, sideBorder } from '../boardRotation';
 import { PIECE_NAMES } from '../messages';
 import { useSideTones } from '../theme';
+import { factionOf } from '../../config/factions';
 import { Btn, Card, Label, mix } from '../ui';
 import type { Piece } from '../../engine/types';
 
@@ -51,6 +52,9 @@ export const SetupScreen: React.FC = () => {
   const allPlaced = unplaced.length === 0;
   const sideVar = player === 'A' ? 'var(--main)' : 'var(--rv)';
   const sideTone = tones[player];
+  const factionA = useSettings(s => s.factionA);
+  const factionB = useSettings(s => s.factionB);
+  const facOf = (o: 'A' | 'B') => factionOf(o === 'A' ? factionA : factionB);
 
   function pickMode(m: DeployMode) {
     setMode(m);
@@ -159,12 +163,12 @@ export const SetupScreen: React.FC = () => {
                           position: 'absolute', inset: 2,
                           display: 'flex', flexDirection: 'column',
                           alignItems: 'center', justifyContent: 'center', gap: 1, borderRadius: 4,
-                          border: `1px solid ${mix(piece.owner === 'A' ? 'var(--main)' : 'var(--rv)', 55)}`,
-                          background: mix(piece.owner === 'A' ? 'var(--main)' : 'var(--rv)', 12),
+                          border: `1px solid ${facOf(piece.owner).edge}`,
+                          background: facOf(piece.owner).token(1),
                         }}
                       >
                         {canSeeIdentity(piece, viewer)
-                          ? getUnitIcon(piece.type, Math.floor(cellSize * 0.5), tones[piece.owner].main)
+                          ? <span style={{ display: 'flex', filter: facOf(piece.owner).shadowGlyph ? 'drop-shadow(0 0 2px rgba(0,0,0,0.9))' : undefined }}>{getUnitIcon(piece.type, Math.floor(cellSize * 0.5), facOf(piece.owner).glyph)}</span>
                           : <span style={{ fontSize: Math.floor(cellSize * 0.34), fontWeight: 800, color: mix(piece.owner === 'A' ? 'var(--main)' : 'var(--rv)', 65) }}>?</span>
                         }
                         {cellSize > 26 && canSeeIdentity(piece, viewer) && (
@@ -211,7 +215,7 @@ export const SetupScreen: React.FC = () => {
             }}>{player}</div>
             <div>
               <div style={{ fontSize: 14, color: sideVar, fontWeight: 700 }}>
-                {vsCpu && player === 'B' ? 'CPU' : `Jugador ${player}`}
+                {vsCpu && player === 'B' ? 'CPU' : `Jugador ${player}`} · {facOf(player).name}
               </div>
               <div style={{ fontSize: 12, color: 'var(--main-soft)' }}>Despliegue de la flota</div>
             </div>

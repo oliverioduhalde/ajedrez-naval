@@ -5,7 +5,7 @@ import { useSettings } from '../../store/settingsStore';
 import { canBeDamaged, canPassMines, getActualRange, getNominalRange, pieceLabel } from '../../engine/pieces';
 import { getUnitIcon } from './PieceIcons';
 import { PIECE_NAMES, PIECE_ROLE } from '../messages';
-import { useSideTones } from '../theme';
+import { factionOf } from '../../config/factions';
 import { DamagedFlames } from '../fx/DamagedFlames';
 import { mix } from '../ui';
 
@@ -22,7 +22,8 @@ export const PieceZoomModal: React.FC<{ viewAs: Player }> = ({ viewAs }) => {
   const advanced = useGameStore(s => s.game.options.advancedActualRange);
   const close = useGameStore(s => s.closePieceZoom);
   const size = useSettings(s => s.pieceZoomSize);
-  const tones = useSideTones();
+  const factionA = useSettings(s => s.factionA);
+  const factionB = useSettings(s => s.factionB);
 
   useEffect(() => {
     if (!zoomPieceId) return;
@@ -36,8 +37,8 @@ export const PieceZoomModal: React.FC<{ viewAs: Player }> = ({ viewAs }) => {
 
   const visible = canSeeIdentity(piece, viewAs);
   const ownerVar = piece.owner === 'A' ? 'var(--main)' : 'var(--rv)';
-  const tone = tones[piece.owner];
-  const iconColor = piece.damaged ? '#ffb020' : tone.main;
+  const faction = factionOf(piece.owner === 'A' ? factionA : factionB);
+  const iconColor = piece.damaged ? '#ffb020' : faction.glyph;
   const nominal = visible ? getNominalRange(piece.type) : 0;
   const actual = visible ? getActualRange(piece) : 0;
   const fmt = (n: number) => (n === Infinity ? 'ilimitado' : `${n} casilla${n === 1 ? '' : 's'}`);
@@ -62,12 +63,14 @@ export const PieceZoomModal: React.FC<{ viewAs: Player }> = ({ viewAs }) => {
           <div style={{
             width: '100%', height: size, aspectRatio: '1 / 1',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-            borderRadius: 12, background: mix(ownerVar, 14), border: `2px solid ${piece.damaged ? 'var(--warn)' : ownerVar}`,
+            borderRadius: 12, background: faction.token(1), border: `2px solid ${piece.damaged ? 'var(--warn)' : faction.edge}`,
             transform: piece.damaged ? 'rotate(90deg)' : 'none',
           }}>
             {visible ? (
               <>
-                {getUnitIcon(piece.type, Math.floor(size * 0.55), iconColor)}
+                <span style={{ display: 'flex', filter: faction.shadowGlyph ? 'drop-shadow(0 0 3px rgba(0,0,0,0.9))' : undefined }}>
+                  {getUnitIcon(piece.type, Math.floor(size * 0.55), iconColor)}
+                </span>
                 <span style={{ fontSize: Math.max(14, Math.floor(size * 0.12)), fontWeight: 800, color: piece.damaged ? 'var(--warn)' : ownerVar }}>
                   {pieceLabel(piece.type)}
                 </span>
@@ -83,7 +86,7 @@ export const PieceZoomModal: React.FC<{ viewAs: Player }> = ({ viewAs }) => {
           {visible ? PIECE_NAMES[piece.type] : 'Contacto desconocido'}
         </div>
         <div style={{ fontSize: 13, color: 'var(--main-soft)', margin: '2px 0 12px' }}>
-          Jugador {piece.owner}{piece.owner === viewAs ? ' (tuyo)' : ' (rival)'}
+          Jugador {piece.owner} · {faction.name}{piece.owner === viewAs ? ' (tuyo)' : ' (rival)'}
           {visible && piece.damaged ? ' · averiado' : visible ? ' · ileso' : ''}
         </div>
 

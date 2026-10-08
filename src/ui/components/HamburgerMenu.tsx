@@ -4,7 +4,8 @@ import { CPU_AVAILABLE, useSettings, ZOOM_MAX, ZOOM_MIN } from '../../store/sett
 import { CPU_LEVELS } from '../../ai/types';
 import { SOUND_LIST, playSound, setAudioEnabled, setMasterVolume, unlockAudio, type SoundInfo } from '../../fx/audio';
 import type { SoundId } from '../../fx/types';
-import { PALETTES, paletteSwatch, resolveBoard, resolveRival, type PaletteId } from '../theme';
+import { PALETTES, paletteSwatch, resolveBoard, type PaletteId } from '../theme';
+import { factionOf } from '../../config/factions';
 import { mix } from '../ui';
 
 const Toggle: React.FC<{
@@ -246,8 +247,9 @@ export const HamburgerMenu: React.FC = () => {
   const { game, resetGame } = useGameStore();
   const opts = game.options;
   const st = useSettings();
-  const rivalId = resolveRival(st.colorMain, st.colorRival);
-  const boardId = resolveBoard(st.colorMain, rivalId, st.colorBoard);
+  const facA = factionOf(st.factionA);
+  const facB = factionOf(st.factionB);
+  const boardId = resolveBoard(facA.paletteId, facB.paletteId, st.colorBoard);
 
   function update(patch: Partial<typeof opts>) {
     resetGame({ ...opts, ...patch });
@@ -318,39 +320,33 @@ export const HamburgerMenu: React.FC = () => {
           </>
         )}
 
-        <Section>Colores</Section>
-        <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 8 }}>Color general (y jugador A)</div>
-        <Swatches value={st.colorMain} onPick={id => st.set({ colorMain: id })} />
-        <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 8 }}>Color del rival (jugador B)</div>
-        <Swatches
-          value={st.colorRival === 'auto' ? rivalId : st.colorRival}
-          disabledIds={[st.colorMain]}
-          onPick={id => st.set({ colorRival: id })}
-          extra={
-            <button
-              onClick={() => st.set({ colorRival: 'auto' })}
-              style={{
-                padding: '0 10px', height: 30, borderRadius: 15, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                background: st.colorRival === 'auto' ? mix('var(--main)', 20) : 'transparent',
-                color: st.colorRival === 'auto' ? 'var(--main)' : 'var(--main-soft)',
-                border: `1px solid ${st.colorRival === 'auto' ? 'var(--main)' : 'var(--line)'}`,
-              }}
-            >
-              Auto
-            </button>
-          }
-        />
-        <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
-          El rival siempre usa un color distinto al general. En Auto se elige el contraste: verde con ámbar, por ejemplo.
+        <Section>Facciones y colores</Section>
+        {([['J.A', facA], [st.vsCpu ? 'CPU (J.B)' : 'J.B', facB]] as const).map(([who, f]) => (
+          <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <span style={{ width: 34, height: 22, borderRadius: 3, flexShrink: 0, background: f.flag, border: `1px solid ${f.edge}` }} />
+            <span style={{ fontSize: 14, color: 'var(--main-soft)' }}>{who}: <b style={{ color: 'var(--main)' }}>{f.name}</b></span>
+          </div>
+        ))}
+        <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 10, lineHeight: 1.4 }}>
+          Cada facción define el color de sus fichas y el himno que suena cuando gana. Se eligen al empezar una partida.
         </div>
+        <button
+          onClick={() => { resetGame(opts); setOpen(false); }}
+          style={{
+            padding: '8px 12px', marginBottom: 16, borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            border: '1px solid var(--line)', background: 'transparent', color: 'var(--main-soft)',
+          }}
+        >
+          Elegir otras facciones (partida nueva)
+        </button>
         <div style={{ fontSize: 14, color: 'var(--main-soft)', marginBottom: 8 }}>Color del tablero</div>
         <Swatches
           value={boardId}
-          disabledIds={[st.colorMain, rivalId]}
+          disabledIds={[facA.paletteId, facB.paletteId]}
           onPick={id => st.set({ colorBoard: id })}
         />
         <div style={{ fontSize: 12, color: 'var(--main-mute)', marginBottom: 16, lineHeight: 1.4 }}>
-          El tablero (mar, islas, grilla y radar) tiene un tercer color, distinto al de las fichas de los dos jugadores. Por defecto, azul mar.
+          El tablero (mar, islas, grilla y radar) tiene un color propio, distinto al de las facciones. Por defecto, azul mar.
         </div>
 
         <Section>Radar</Section>
