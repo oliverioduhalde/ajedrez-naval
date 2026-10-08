@@ -55,8 +55,9 @@ function ensureEngine(): Engine | null {
   if (engine) return engine;
   const Ctor = audioCtor();
   if (!Ctor) return null;
+  let ctx: AudioContext | undefined;
   try {
-    const ctx = new Ctor({ latencyHint: 'interactive' });
+    ctx = new Ctor({ latencyHint: 'interactive' });
     engine = { ctx, rig: createRig(ctx, masterTarget()) };
     // iOS Safari solo libera el audio si dentro del gesto suena algo: una muestra de silencio
     const src = ctx.createBufferSource();
@@ -65,6 +66,11 @@ function ensureEngine(): Engine | null {
     src.start(0);
   } catch {
     engine = null;
+    try {
+      void ctx?.close().catch(noop);
+    } catch {
+      /* ya cerrado o sin soporte */
+    }
   }
   return engine;
 }
@@ -110,18 +116,23 @@ function begin(e: Engine, id: SoundId, opts: PlayOpts): void {
     live.delete(oldest);
     oldest.kill(now);
   }
-  const t0 = now + LOOKAHEAD + Math.max(0, opts.delay ?? 0);
+  const delay = opts.delay !== undefined && Number.isFinite(opts.delay) ? Math.max(0, opts.delay) : 0;
   const rng = mulberry32((Math.random() * 4294967296) >>> 0);
-  const handle = scheduleVoice(e.rig, id, t0, opts, rng, h => {
-    live.delete(h);
-    finished++;
-  });
-  live.add(handle);
-  created++;
+  try {
+    const handle = scheduleVoice(e.rig, id, now + LOOKAHEAD + delay, opts, rng, h => {
+      live.delete(h);
+      finished++;
+    });
+    live.add(handle);
+    created++;
+  } catch (err) {
+    // un navegador que rechace algún parámetro no debe romper la partida: ese sonido simplemente no suena
+    if (import.meta.env.DEV) console.warn('[audio] no se pudo programar', id, err);
+  }
 }
 
 export function playSound(id: SoundId, opts: PlayOpts = {}): void {
-  if (!enabled || !VOICES[id]) return;
+  if (!enabled || !VOICES[id] || (opts.gain !== undefined && opts.gain <= 0.001)) return;
   const e = engine;
   if (!e) return; // nadie desbloqueó el audio todavía: no se puede arrancar fuera de un gesto
   const { state } = e.ctx;
@@ -156,13 +167,16 @@ function applyMaster(): void {
 }
 
 export function setAudioEnabled(on: boolean): void {
+  if (on === enabled) return;
   enabled = on;
   if (!on) killAll();
   applyMaster();
 }
 
 export function setMasterVolume(v: number): void {
-  volume = Number.isFinite(v) ? clamp(v, 0, 1) : volume;
+  const next = Number.isFinite(v) ? clamp(v, 0, 1) : volume;
+  if (next === volume) return;
+  volume = next;
   applyMaster();
 }
 
@@ -194,6 +208,7 @@ export function audioStats() {
     state: engine?.ctx.state ?? 'none',
     enabled,
     volume,
+    master: engine?.rig.master.gain.value ?? null,
     active: live.size,
     created,
     finished,
@@ -202,6 +217,15 @@ export function audioStats() {
 
 installGestureListeners();
 
+/** Solo en desarrollo: analizador sobre la salida real, para medir lo que suena desde la consola. */
+function tapOutput(): AnalyserNode | null {
+  if (!engine) return null;
+  const analyser = engine.ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  engine.rig.output.connect(analyser);
+  return analyser;
+}
+
 if (import.meta.env.DEV && typeof window !== 'undefined') {
-  (window as unknown as Record<string, unknown>).__audio = { stats: audioStats, renderSoundOffline };
+  (window as unknown as Record<string, unknown>).__audio = { stats: audioStats, renderSoundOffline, tap: tapOutput };
 }

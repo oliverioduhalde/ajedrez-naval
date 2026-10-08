@@ -29,6 +29,7 @@ export const Ring: React.FC<{
   </svg>
 );
 
-export const Anchor: React.FC<{ x: number; y: number; children: React.ReactNode }> = ({ x, y, children }) => (
-  <div style={{ position: 'absolute', left: x, top: y, width: 0, height: 0 }}>{children}</div>
+/** Origen de un efecto: caja de tamaño 0 en (x, y). `isolate` encierra la mezcla de capas (screen) dentro del efecto. */
+export const Anchor: React.FC<{ x: number; y: number; isolate?: boolean; children: React.ReactNode }> = ({ x, y, isolate, children }) => (
+  <div style={{ position: 'absolute', left: x, top: y, width: 0, height: 0, isolation: isolate ? 'isolate' : undefined }}>{children}</div>
 );

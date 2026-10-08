@@ -43,7 +43,7 @@ export const DamagedFlames: React.FC<Props> = ({ cellSize, seed, instant, contai
   const count: 3 | 4 | 5 = cellSize >= 40 ? 5 : cellSize >= 20 ? 4 : 3;
   const embers = reduced || cellSize < 20 ? 0 : cellSize >= 34 ? 3 : 2;
   const smoke = !reduced && cellSize >= 20;
-  const base = contained ? 84 : 58; // % de la altura de la ficha donde nacen las llamas
+  const base = contained ? 46 : 34; // % de la altura de la ficha donde nacen las llamas
   const boxStyle: React.CSSProperties = contained
     ? { top: 0, height: `${base}%` }
     : { top: `${base - 100}%`, height: '100%' };
@@ -62,13 +62,13 @@ export const DamagedFlames: React.FC<Props> = ({ cellSize, seed, instant, contai
     >
       <div style={{
         position: 'absolute', inset: '6%', borderRadius: 6,
-        background: 'radial-gradient(ellipse at 50% 60%, rgba(255,140,30,0.6), rgba(255,90,10,0.26) 55%, rgba(255,60,0,0) 78%)',
+        background: 'radial-gradient(ellipse closest-side at 50% 60%, rgba(255,140,30,0.4), rgba(255,90,10,0.16) 55%, rgba(255,60,0,0) 100%)',
         animation: `fx-flame-glow ${1100 + (h % 5) * 120}ms ease-in-out ${-(h % 900)}ms infinite`,
       }} />
 
       <svg
         viewBox="0 0 100 100" preserveAspectRatio="none"
-        style={{ position: 'absolute', left: '2%', width: '96%', overflow: 'visible', ...boxStyle }}
+        style={{ position: 'absolute', left: '2%', width: '96%', overflow: 'visible', opacity: contained ? 0.88 : undefined, ...boxStyle }}
       >
         <defs>
           <linearGradient id={gOuter} x1="0" y1="0" x2="0" y2="1">

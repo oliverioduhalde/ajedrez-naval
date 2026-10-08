@@ -1,8 +1,39 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { anim, cellCenter, centered, cssVars, prefersReducedMotion, rnd } from './geometry';
 import { Anchor, Ring, type FxProps } from './parts';
 
 const GOLDEN_ANGLE = 2.39996;
+
+/** Mancha elíptica de espuma que se abre y se desvanece (base de la columna de agua). */
+const Ellipse: React.FC<{ w: number; h: number; y?: number; lift: number; delay: number; dur: number }> = ({ w, h, y = 0, lift, delay, dur }) => (
+  <div style={{
+    ...centered(w, h), top: y - h / 2, borderRadius: '50%',
+    background: 'radial-gradient(ellipse at 50% 55%, rgba(255,255,255,0.95), rgba(200,230,250,0.8) 50%, rgba(160,210,240,0) 72%)',
+    ...cssVars({ '--lift': lift }),
+    animation: anim('fx-water-puff', dur, delay),
+  }} />
+);
+
+/** Columna de agua afilada hacia arriba, con una capa azulada detrás para dar volumen. */
+const WaterColumn: React.FC<{ w: number; h: number; delay: number; dur: number }> = ({ w, h, delay, dur }) => {
+  const gid = useId();
+  return (
+    <svg
+      width={w} height={h} viewBox="0 0 40 100" preserveAspectRatio="none"
+      style={{ position: 'absolute', left: -w / 2, top: -h, overflow: 'visible', transformOrigin: '50% 100%', animation: anim('fx-water-column', dur, delay) }}
+    >
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.98" />
+          <stop offset="0.55" stopColor="#e4f4ff" stopOpacity="0.92" />
+          <stop offset="1" stopColor="#9fd0f0" stopOpacity="0.55" />
+        </linearGradient>
+      </defs>
+      <path d="M1 100 C7 80 9 58 8 40 C6 20 13 4 20 4 C27 4 34 20 32 40 C31 58 33 80 39 100 Z" fill="rgba(150,205,240,0.5)" />
+      <path d="M7 100 C11 82 13 60 12 42 C11 24 15 10 20 10 C25 10 29 24 28 42 C27 60 29 82 33 100 Z" fill={`url(#${gid})`} stroke="rgba(190,225,250,0.8)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+};
 
 const SIZE_K = { small: 1, medium: 1.6, large: 2.3 } as const;
 
@@ -16,24 +47,18 @@ export const Explosion: React.FC<FxProps<'explosion'>> = ({ spec, seed, delay, c
   const nSparks = reduced ? 4 : spec.size === 'small' ? 8 : spec.size === 'medium' ? 11 : 14;
   const lobes = spec.size === 'small'
     ? [{ dx: 0, dy: 0, s: 1, d: 0 }]
-    : [{ dx: 0, dy: 0, s: 1, d: 0 }, { dx: 0.18, dy: -0.15, s: 0.72, d: 60 }, { dx: -0.2, dy: 0.1, s: 0.62, d: 40 }];
+    : [
+      { dx: 0, dy: 0, s: 1, d: 0 }, { dx: 0.2, dy: -0.15, s: 0.7, d: 50 },
+      { dx: -0.22, dy: 0.08, s: 0.62, d: 30 }, { dx: 0.05, dy: 0.22, s: 0.5, d: 80 },
+    ];
 
   return (
-    <Anchor x={x} y={y}>
+    <Anchor x={x} y={y} isolate>
       <div style={{
         ...centered(D * 2.6), borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(255,160,60,0.5) 0%, rgba(255,110,30,0.22) 45%, rgba(255,90,20,0) 70%)',
         animation: anim('fx-glow', T * 0.55, delay),
       }} />
-
-      {[0, 1, 2].map(i => (
-        <div key={`smoke${i}`} style={{
-          ...centered(D * (0.78 - i * 0.08)), borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(92,90,98,0.9) 0%, rgba(74,72,80,0.6) 45%, rgba(70,68,76,0) 72%)',
-          ...cssVars({ '--dx': (rnd(seed, i, 3) - 0.5) * D * 0.55, '--dy': -D * (0.5 + 0.4 * rnd(seed, i, 4)) }),
-          animation: anim('fx-smoke', T * 0.85, delay + T * 0.1 * i),
-        }} />
-      ))}
 
       <Ring w={D * 1.9} h={D * 1.9} delay={delay} dur={600 + 80 * k} color="rgba(255,238,200,0.9)" fill="rgba(255,220,160,0.06)" />
 
@@ -42,11 +67,21 @@ export const Explosion: React.FC<FxProps<'explosion'>> = ({ spec, seed, delay, c
         return (
           <div key={`lobe${i}`} style={{
             position: 'absolute', left: l.dx * D - w / 2, top: l.dy * D - w / 2, width: w, height: w, borderRadius: '50%',
-            background: 'radial-gradient(circle, #fff 0%, #fff2a8 14%, #ffc83a 32%, #ff8a1c 52%, #e8430f 70%, rgba(150,30,5,0.55) 84%, rgba(120,20,0,0) 100%)',
+            background: 'radial-gradient(circle, #fff 0%, #fff3b0 10%, #ffd24a 24%, #ff9a22 40%, rgba(240,90,20,0.85) 56%, rgba(200,50,10,0.5) 72%, rgba(140,25,5,0.18) 88%, rgba(120,20,0,0) 100%)',
+            mixBlendMode: 'screen',
             animation: anim('fx-fireball', T - l.d, delay + l.d),
           }} />
         );
       })}
+
+      {[0, 1, 2].map(i => (
+        <div key={`smoke${i}`} style={{
+          ...centered(D * (0.78 - i * 0.08)), borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(132,124,126,0.9) 0%, rgba(104,98,104,0.62) 45%, rgba(90,88,96,0) 72%)',
+          ...cssVars({ '--dx': (rnd(seed, i, 3) - 0.5) * D * 0.55, '--dy': -D * (0.5 + 0.4 * rnd(seed, i, 4)) }),
+          animation: anim('fx-smoke', T * 0.85, delay + T * 0.1 * i),
+        }} />
+      ))}
 
       <div style={{
         ...centered(D * 0.9), borderRadius: '50%',
@@ -79,7 +114,7 @@ export const Splash: React.FC<FxProps<'splash'>> = ({ spec, seed, delay, cs, rot
   const big = spec.size === 'big';
   const K = big ? 1.35 : 0.8;
   const T = spec.dur;
-  const colW = Math.max(6, 0.5 * cs * K);
+  const colW = Math.max(8, 0.9 * cs * K);
   const colH = 1.5 * cs * K;
   const nDrops = reduced ? 4 : big ? 12 : 7;
   const rMax = (big ? 2 : 1) * cs;
@@ -93,24 +128,15 @@ export const Splash: React.FC<FxProps<'splash'>> = ({ spec, seed, delay, cs, rot
         />
       ))}
 
-      <div style={{
-        position: 'absolute', left: -colW / 2, top: -colH, width: colW, height: colH, transformOrigin: '50% 100%',
-        borderRadius: '50% 50% 10% 10% / 22% 22% 8% 8%',
-        background: 'linear-gradient(to top, rgba(165,212,240,0.55), rgba(230,246,255,0.92) 45%, rgba(255,255,255,0.96))',
-        animation: anim('fx-water-column', T, delay),
-      }} />
+      <Ellipse w={1.3 * cs * K} h={0.42 * cs * K} lift={0} delay={delay} dur={T * 0.8} />
+      <WaterColumn w={colW} h={colH} delay={delay} dur={T} />
 
-      {[{ f: 0.45, w: 0.85, d: 0.05 }, { f: 0.8, w: 1.05, d: 0.1 }, { f: 1, w: 0.7, d: 0.15 }].map((p, i) => {
-        const w = p.w * cs * K;
-        return (
-          <div key={`puff${i}`} style={{
-            ...centered(w, w * 0.45), top: -colH * p.f - (w * 0.45) / 2, borderRadius: '50%',
-            background: 'radial-gradient(ellipse at 50% 55%, rgba(255,255,255,0.95), rgba(200,230,250,0.8) 50%, rgba(160,210,240,0) 72%)',
-            ...cssVars({ '--lift': 0.5 * cs * K }),
-            animation: anim('fx-water-puff', T * 0.7, delay + T * p.d),
-          }} />
-        );
-      })}
+      {[{ f: 0.7, w: 0.95, d: 0.05 }, { f: 0.95, w: 0.7, d: 0.1 }].map((p, i) => (
+        <Ellipse
+          key={`puff${i}`} w={p.w * cs * K} h={p.w * cs * K * 0.45} y={-colH * p.f}
+          lift={0.5 * cs * K} delay={delay + T * p.d} dur={T * 0.7}
+        />
+      ))}
 
       {Array.from({ length: nDrops }, (_, i) => {
         const dir = rnd(seed, i) < 0.5 ? -1 : 1;

@@ -59,22 +59,6 @@ export function fadeCurve(points: number, from: number, to: number): F32 {
   return out;
 }
 
-/** Valor de referencia de la envolvente de un sonido: 0 antes y después, rampas de coseno, meseta `peak`. */
-export function envelopeValue(t: number, dur: number, fadeIn: number, fadeOut: number, peak = 1): number {
-  if (t <= 0 || t >= dur) return 0;
-  if (fadeIn > 0 && t < fadeIn) return peak * (0.5 - 0.5 * Math.cos((Math.PI * t) / fadeIn));
-  if (fadeOut > 0 && t > dur - fadeOut) return peak * (0.5 - 0.5 * Math.cos((Math.PI * (dur - t)) / fadeOut));
-  return peak;
-}
-
-/** Barrido exponencial de `from` a `to` muestreado en n puntos (para setValueCurveAtTime). */
-export function expCurve(from: number, to: number, n: number): F32 {
-  const out = new Float32Array(Math.max(2, n));
-  const ratio = to / from;
-  for (let i = 0; i < out.length; i++) out[i] = from * Math.pow(ratio, i / (out.length - 1));
-  return out;
-}
-
 /** Factor Doppler para un sobrevuelo: arranca en 1+depth (acercándose) y termina en 1-depth (alejándose). */
 export function dopplerCurve(n: number, depth: number, centre = 0.5): F32 {
   const out = new Float32Array(Math.max(2, n));
@@ -87,16 +71,27 @@ export function dopplerCurve(n: number, depth: number, centre = 0.5): F32 {
   return out;
 }
 
-/** Curva de un limitador suave: lineal hasta `knee`, luego se aplana tanh hacia `ceiling` (nunca lo supera). */
-export function softClipCurve(n = 2049, knee = 0.55, ceiling = 0.92): F32 {
+/**
+ * Curva de un limitador suave. La entrada de la curva (-1..1) equivale a ±`span` en la señal: lineal hasta
+ * `knee`, y desde ahí se aplana tanh hacia `ceiling` sin llegar a un recorte duro (que con el sobremuestreo
+ * del WaveShaper rebasaría el techo).
+ */
+export function softClipCurve(n = 2049, knee = 0.55, ceiling = 0.92, span = 2): F32 {
   const out = new Float32Array(n);
   const range = ceiling - knee;
   for (let i = 0; i < n; i++) {
-    const x = -1 + (2 * i) / (n - 1);
+    const x = span * (-1 + (2 * i) / (n - 1));
     const a = Math.abs(x);
     const y = a <= knee ? a : knee + range * Math.tanh((a - knee) / range);
     out[i] = x < 0 ? -y : y;
   }
+  return out;
+}
+
+/** Tope duro en ±ceiling (sin sobremuestreo, así no hay rebasamiento): la red de seguridad tras el limitador suave. */
+export function hardLimitCurve(n = 2001, ceiling = 0.945): F32 {
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) out[i] = clamp(-1 + (2 * i) / (n - 1), -ceiling, ceiling);
   return out;
 }
 
@@ -159,8 +154,15 @@ export function brownNoise(length: number, rng: () => number): F32 {
     raw[i] = y;
   }
   const out = loopable(raw, length);
+  // una caminata aleatoria arrastra un nivel medio: se lo quita para que no entre corriente continua a los filtros
+  let mean = 0;
+  for (const v of out) mean += v;
+  mean /= out.length;
   let peak = 0;
-  for (const v of out) peak = Math.max(peak, Math.abs(v));
+  for (let i = 0; i < out.length; i++) {
+    out[i] -= mean;
+    peak = Math.max(peak, Math.abs(out[i]));
+  }
   const k = peak > 0 ? 0.9 / peak : 1;
   for (let i = 0; i < out.length; i++) out[i] *= k;
   return out;
@@ -168,7 +170,7 @@ export function brownNoise(length: number, rng: () => number): F32 {
 
 /**
  * Respuesta al impulso estéreo de una sala/mar abierto: ruido con decaimiento exponencial que se
- * oscurece con el tiempo, unas primeras reflexiones y una cola que llega a cero exacto.
+ * oscurece con el tiempo, unas primeras reflexiones y una cola que llega a cero exacto, de energía unitaria.
  */
 export function impulseResponse(sampleRate: number, seconds: number, rng: () => number): [F32, F32] {
   const n = Math.floor(sampleRate * seconds);
@@ -193,6 +195,11 @@ export function impulseResponse(sampleRate: number, seconds: number, rng: () => 
     const tailStart = Math.floor(n * 0.78);
     for (let i = tailStart; i < n; i++) d[i] *= 0.5 + 0.5 * Math.cos((Math.PI * (i - tailStart)) / (n - tailStart));
     d[n - 1] = 0;
+    // energía unitaria por canal: la reverb devuelve tanta energía como recibe, igual en todos los navegadores
+    let energy = 0;
+    for (let i = 0; i < n; i++) energy += d[i] * d[i];
+    const k = energy > 0 ? 1 / Math.sqrt(energy) : 1;
+    for (let i = 0; i < n; i++) d[i] *= k;
     channels.push(d);
   }
   return [channels[0], channels[1]];
