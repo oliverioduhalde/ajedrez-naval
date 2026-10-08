@@ -3,7 +3,7 @@
  * No side effects, no imports from React/UI.
  */
 import type { GameState, Player, Piece } from './types';
-import { createFleet, getNominalRange, getActualRange, pieceLabel } from './pieces';
+import { createFleet, getCategory, getNominalRange, getActualRange, pieceLabel } from './pieces';
 import { resolveCombat, isFatalResult } from './combat';
 import { hasLineOfSight } from './lineOfSight';
 import { applyMove } from './movement';
@@ -178,10 +178,12 @@ export function movePiece(
   }
 
   // Check victory
+  // Los aviones pueden entrar a la zona de llegada, pero no ganan la partida con eso.
   const arrivalKind = getCellKind(destination.r, destination.c);
   const isVictoryCell =
-    (piece.owner === 'A' && arrivalKind === 'arrivalB') ||
-    (piece.owner === 'B' && arrivalKind === 'arrivalA');
+    getCategory(piece.type) !== 'avion' &&
+    ((piece.owner === 'A' && arrivalKind === 'arrivalB') ||
+      (piece.owner === 'B' && arrivalKind === 'arrivalA'));
 
   if (isVictoryCell) {
     return {
